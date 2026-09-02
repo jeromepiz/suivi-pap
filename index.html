@@ -317,6 +317,39 @@ textarea.dictate{ width:100%; min-height:110px; padding:14px; border-radius:var(
 <div class="modal-backdrop" id="modalBackdrop">
   <div class="modal-sheet" id="modalSheet"></div>
 </div>
+
+<!-- ==========================================================================
+     SYNCHRONISATION DES MOTS-CLÉS ENTRE TOUS LES TÉLÉPHONES (Firebase, gratuit)
+     ==========================================================================
+     Par défaut, "Mes mots-clés" reste local à cet appareil (comme avant).
+     Pour que les formulations ajoutées par un évaluateur soient visibles par
+     toute l'équipe, sur tous les téléphones :
+       1. Allez sur https://console.firebase.google.com → créez un projet (gratuit).
+       2. Menu de gauche → "Realtime Database" → "Créer une base de données".
+          Choisissez une région, puis démarrez en mode "Test".
+       3. Onglet "Règles" de la Realtime Database, remplacez par :
+             { "rules": { "keywords": { ".read": true, ".write": true } } }
+          puis "Publier" (cette règle ne périme pas, contrairement au mode test).
+       4. Icône ⚙️ → "Paramètres du projet" → en bas, section "Vos applications"
+          → icône "</>" (Web) → donnez un nom → "Enregistrer l'application".
+          Copiez l'objet de configuration affiché (apiKey, databaseURL, etc.)
+          et collez-le ci-dessous, à la place des valeurs "VOTRE_...".
+       5. Réenregistrez ce fichier sous le même nom (index.html) sur votre
+          dépôt GitHub : c'est tout, la synchronisation est active pour tous.
+     Tant que ces valeurs ne sont pas renseignées, l'app fonctionne exactement
+     comme avant (mots-clés uniquement locaux à l'appareil).
+-->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script>
+window.FIREBASE_CONFIG = {
+  apiKey: "AIzaSyDHLAZSBZSyn5v7JYCcvxKzifdx0pUkQzA",
+  authDomain: "suivi-pap-7317f.firebaseapp.com",
+  databaseURL: "https://suivi-pap-7317f-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "suivi-pap-7317f",
+};
+</script>
+
 <script>
 /* =========================================================================
    SUIVI PAP — outil mobile de suivi de prestation collecte porte-à-porte
@@ -428,6 +461,23 @@ const store = {
   },
 };
 
+/* ---------- Synchronisation partagée des mots-clés (Firebase, optionnel) ---------- */
+const FB_CFG = (typeof window!=='undefined' && window.FIREBASE_CONFIG) || {};
+const FIREBASE_ENABLED = !!(FB_CFG.apiKey && FB_CFG.apiKey!=='VOTRE_API_KEY' && FB_CFG.databaseURL);
+let fbDB = null;
+if(FIREBASE_ENABLED && typeof firebase!=='undefined'){
+  try{
+    firebase.initializeApp(FB_CFG);
+    fbDB = firebase.database();
+  }catch(e){ console.error('Firebase init error', e); fbDB = null; }
+}
+function withTimeout(promise, ms){
+  return Promise.race([
+    promise,
+    new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')), ms)),
+  ]);
+}
+
 /* ---------- État de session ---------- */
 function blankReport(){
   const items = {};
@@ -471,8 +521,28 @@ let currentScreen = 'home';
 let screenBeforeKeywords = 'home';
 
 async function loadCustomKeywords(){
-  const v = await store.get('settings:keywords');
-  if(v) customKeywords = v;
+  // charge d'abord le cache local : disponible immédiatement, fonctionne hors-ligne
+  const local = await store.get('settings:keywords');
+  if(local) customKeywords = local;
+  if(!FIREBASE_ENABLED || !fbDB) return;
+  try{
+    const snap = await withTimeout(fbDB.ref('keywords').once('value'), 4000);
+    const remote = snap.val();
+    if(remote){
+      customKeywords = remote;
+      store.set('settings:keywords', remote);
+    }
+  }catch(e){ /* pas de réseau ou base non jointe : on reste sur le cache local */ }
+  // écoute en continu les ajouts faits par les autres évaluateurs
+  try{
+    fbDB.ref('keywords').on('value', (snap2)=>{
+      const v = snap2.val();
+      if(!v) return;
+      customKeywords = v;
+      store.set('settings:keywords', v);
+      if(currentScreen==='keywords' && kwDraft===null) render();
+    });
+  }catch(e){}
 }
 
 /* ---------- Utilitaires UI ---------- */
@@ -950,12 +1020,42 @@ function progressPct(){
   return Math.round(((idx+1)/SCREEN_ORDER.length)*100);
 }
 
+/* ---------- Écran maintenu allumé pendant le suivi ---------- */
+let wakeLock = null;
+let wakeLockWanted = false;
+let wakeLockUnsupportedWarned = false;
+async function requestWakeLock(){
+  wakeLockWanted = true;
+  if(!('wakeLock' in navigator)){
+    if(!wakeLockUnsupportedWarned){
+      wakeLockUnsupportedWarned = true;
+      toast("Ce navigateur ne permet pas de garder l'écran allumé automatiquement — augmentez la mise en veille dans les réglages du téléphone.", 4500);
+    }
+    return;
+  }
+  try{
+    wakeLock = await navigator.wakeLock.request('screen');
+    wakeLock.addEventListener('release', ()=>{ wakeLock = null; });
+  }catch(e){ /* refusé silencieusement (ex: batterie faible) — pas bloquant */ }
+}
+function releaseWakeLock(){
+  wakeLockWanted = false;
+  if(wakeLock){ try{ wakeLock.release(); }catch(e){} wakeLock = null; }
+}
+document.addEventListener('visibilitychange', ()=>{
+  if(document.visibilityState==='visible' && wakeLockWanted && !wakeLock){
+    requestWakeLock();
+  }
+});
+
 function goTo(screen){
   // libère le micro continu si on quitte l'écran de suivi vocal
   if(currentScreen==='live' && screen!=='live' && listening){
     listeningIntended = false;
     try{ recognizer && recognizer.stop(); }catch(e){}
   }
+  // l'écran reste allumé pendant tout le déroulé du suivi (du démarrage au récap)
+  if(screen==='home' || screen==='recap'){ releaseWakeLock(); }
   currentScreen = screen;
   render();
   const scroller = document.querySelector('.scroll, .exceptions-scroll');
@@ -998,7 +1098,7 @@ async function renderHome(app){
       </div>
       <div class="big-action" onclick="openKeywords()">
         <div class="ico">🗣️</div>
-        <div class="txt"><div class="t">Mes mots-clés</div><div class="d">Personnaliser vos formulations vocales</div></div>
+        <div class="txt"><div class="t">Mes mots-clés</div><div class="d">${FIREBASE_ENABLED?'Partagées avec toute l\'équipe':'Personnaliser vos formulations vocales'}</div></div>
       </div>
     </div>
     <div style="flex:1"></div>
@@ -1015,7 +1115,8 @@ function showOfflineInfo(){
   openModal(`<h3>Fonctionnement hors-ligne</h3>
   <p><b>Fonctionne sans connexion :</b> ouverture de l'app, saisie, grille tactile des 31 points, signatures, débrief/actions au clavier, rapport officiel à l'écran et impression/PDF, historique des suivis (tout est stocké uniquement sur ce téléphone).</p>
   <p><b>Nécessite une connexion au moment où vous parlez :</b> la reconnaissance vocale continue et les boutons 🎤 de dictée. C'est une limite des navigateurs (le texte est transcrit par un service en ligne) — aucune app web ne peut contourner ça sans un moteur vocal embarqué de plusieurs dizaines de Mo. Si le réseau coupe, l'app vous le signale et bascule sur la grille tactile.</p>
-  <p><b>Pour une utilisation vraiment autonome :</b> enregistrez ce fichier HTML sur le téléphone (ou ajoutez-le à l'écran d'accueil) et ouvrez-le depuis le stockage local plutôt que depuis un lien — plus besoin de rouvrir Claude.</p>
+  ${FIREBASE_ENABLED ? `<p><b>Mots-clés partagés :</b> vos formulations personnalisées se synchronisent avec toute l'équipe dès qu'une connexion est disponible. Hors-ligne, vous continuez à utiliser les dernières formulations reçues (mises en cache sur l'appareil) ; un nouveau mot-clé ajouté hors-ligne se synchronise dès le retour du réseau.</p>` : ''}
+  <p><b>Pour une utilisation autonome :</b> gardez ce lien (adresse https hébergée) en favori ou ajoutez-le à l'écran d'accueil du téléphone — ouvrir le fichier HTML téléchargé en local bloque le micro, ce n'est pas conseillé.</p>
   <button class="modal-close" onclick="closeModal()">Compris</button>`);
 }
 function startNewSuivi(){
@@ -1108,6 +1209,7 @@ function setupValid(){ return R.secteur && R.natureDechet && R.conducteur && R.e
 function escAttr(s){ return (s||'').replace(/"/g,'&quot;'); }
 function beginLive(){
   if(!R.heureDebut) R.heureDebut = nowHM();
+  requestWakeLock();
   goTo('live');
 }
 
@@ -1115,7 +1217,7 @@ function beginLive(){
 function renderLive(app){
   const excCount = R.exceptions.length;
   app.innerHTML = `
-    ${topbar(R.conducteur || 'Équipage', 'Étape 2 · Suivi en direct', true)}
+    ${topbar(R.conducteur || 'Équipage', 'Étape 2 · Suivi en direct · 🔆 écran maintenu allumé', true)}
     <div class="screen active live-wrap">
       <div class="status-strip">
         <div class="dot" id="liveDot"></div>
@@ -1588,13 +1690,18 @@ function renderPrint(app){
 let kwDraft = null; // copie de travail avant enregistrement
 function renderKeywords(app){
   if(!kwDraft) kwDraft = {...customKeywords};
+  const syncBadge = FIREBASE_ENABLED
+    ? `<div class="chip" style="background:var(--ok-dim); border-color:var(--ok); color:var(--ok); margin-bottom:14px;">🔗 Partagé avec toute l'équipe</div>`
+    : `<div class="chip" style="background:var(--na-dim); border-color:var(--na); color:var(--text-dim); margin-bottom:14px;">📴 Local à cet appareil uniquement</div>`;
   app.innerHTML = `
     ${topbar('Mes mots-clés', 'Formulations personnalisées', false)}
     <div class="screen active">
       <div class="scroll">
+        ${syncBadge}
         <div class="hint" style="margin-bottom:14px;">
           Pour chaque point, ajoutez vos propres façons de le dire (séparées par des virgules).
           Elles s'ajoutent aux formulations par défaut et sont prioritaires lors de la reconnaissance.
+          ${FIREBASE_ENABLED ? '' : ' Pour que ces formulations soient visibles par tous les évaluateurs, activez la synchronisation (voir la note en haut du fichier index.html).'}
         </div>
         ${sectionKwHtml('SÉCURITÉ', SEC_ITEMS)}
         ${sectionKwHtml('QUALITÉ', QUAL_ITEMS)}
@@ -1650,9 +1757,18 @@ async function saveKeywords(){
   const cleaned = {};
   Object.keys(kwDraft).forEach(k=>{ if(kwDraft[k] && kwDraft[k].trim()) cleaned[k]=kwDraft[k].trim(); });
   customKeywords = cleaned;
-  await store.set('settings:keywords', customKeywords);
+  await store.set('settings:keywords', customKeywords); // cache local, disponible immédiatement même hors-ligne
   kwDraft = null;
-  toast('Vos formulations sont enregistrées.');
+  if(FIREBASE_ENABLED && fbDB){
+    try{
+      await withTimeout(fbDB.ref('keywords').set(cleaned), 5000);
+      toast("Enregistré et partagé avec toute l'équipe.");
+    }catch(e){
+      toast('Enregistré sur cet appareil — la synchronisation en ligne a échoué (vérifiez la connexion), elle réessaiera plus tard.');
+    }
+  } else {
+    toast('Vos formulations sont enregistrées sur cet appareil.');
+  }
   goTo(screenBeforeKeywords);
 }
 function openKeywords(){ screenBeforeKeywords = currentScreen; kwDraft = {...customKeywords}; goTo('keywords'); }
