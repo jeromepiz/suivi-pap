@@ -1,0 +1,1692 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<title>Suivi PAP — Pizzorno QSE</title>
+<style>
+:root{
+  --bg:#14171a; --surface:#1d2226; --surface-2:#262c31; --surface-3:#2f363c;
+  --border:#343b41; --text:#f2f4f5; --text-dim:#9aa3aa; --text-faint:#6b747b;
+  --accent:#ff7a1a; --accent-dim:#7a3f14;
+  --ok:#3fa66b; --ok-dim:#1c3327;
+  --bad:#e4483c; --bad-dim:#3a1b19;
+  --warn:#e8a93b; --warn-dim:#3a2f13;
+  --na:#5a6169; --na-dim:#26292c;
+  --radius:14px; --radius-lg:20px;
+  --safe-b: env(safe-area-inset-bottom, 0px);
+  --safe-t: env(safe-area-inset-top, 0px);
+  --font-display: -apple-system, "Segoe UI", Roboto, "Helvetica Neue", "Arial Narrow", Arial, sans-serif;
+  --font-body: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+*{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+html,body{height:100%;}
+body{
+  margin:0; background:var(--bg); color:var(--text);
+  font-family:var(--font-body);
+  overscroll-behavior:none; user-select:none;
+  -webkit-user-select:none;
+}
+input,textarea{user-select:text; -webkit-user-select:text;}
+h1,h2,h3,.num,.condensed{font-family:var(--font-display); font-weight:700; letter-spacing:.01em;}
+#app{
+  max-width:480px; margin:0 auto; min-height:100vh;
+  display:flex; flex-direction:column; position:relative;
+  background:var(--bg);
+}
+.topbar{
+  padding-top:calc(10px + var(--safe-t));
+  padding:calc(10px + var(--safe-t)) 14px 10px;
+  display:flex; align-items:center; gap:10px;
+  border-bottom:1px solid var(--border);
+  position:sticky; top:0; background:var(--bg); z-index:20;
+}
+.topbar .icon-btn{ background:none; border:none; color:var(--text); font-size:22px; padding:6px; line-height:1; cursor:pointer; }
+.topbar .title{ flex:1; font-family:var(--font-display); font-weight:700; font-size:20px; letter-spacing:.02em; }
+.topbar .sub{ font-size:12px; color:var(--text-dim); font-weight:500; }
+.progress-track{ height:4px; background:var(--surface-2); }
+.progress-fill{ height:100%; background:var(--accent); transition:width .3s; }
+
+.screen{ display:none; flex:1; flex-direction:column; padding-bottom:calc(20px + var(--safe-b)); }
+.screen.active{ display:flex; }
+.scroll{ flex:1; overflow-y:auto; padding:16px; }
+
+.field-label{ font-size:13px; font-weight:700; color:var(--text-dim); text-transform:uppercase; letter-spacing:.06em; margin:18px 0 8px; }
+.field-label:first-child{ margin-top:0; }
+.chip-row{ display:flex; flex-wrap:wrap; gap:8px; }
+.chip{
+  padding:10px 16px; border-radius:999px; border:1.5px solid var(--border);
+  background:var(--surface); color:var(--text); font-size:15px; font-weight:600;
+  cursor:pointer; min-height:44px; display:flex; align-items:center;
+}
+.chip.selected{ background:var(--accent); border-color:var(--accent); color:#1a1200; }
+.text-input{
+  width:100%; padding:14px 16px; border-radius:var(--radius); border:1.5px solid var(--border);
+  background:var(--surface); color:var(--text); font-size:17px; font-family:inherit;
+}
+.text-input:focus{ outline:none; border-color:var(--accent); }
+.input-with-mic{ position:relative; }
+.input-with-mic .text-input{ padding-right:52px; }
+.mic-inline{
+  position:absolute; right:6px; top:50%; transform:translateY(-50%);
+  width:38px; height:38px; border-radius:50%; border:none; background:var(--surface-3);
+  color:var(--text); font-size:17px; display:flex; align-items:center; justify-content:center; cursor:pointer;
+}
+.mic-inline.on{ background:var(--accent); color:#1a1200; }
+.row-2{ display:flex; gap:10px; }
+.row-2 > *{ flex:1; }
+.hint{ font-size:12.5px; color:var(--text-faint); margin-top:6px; line-height:1.4; }
+.datalist-suggest{ display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+.datalist-suggest button{
+  background:var(--surface-2); border:1px solid var(--border); color:var(--text-dim);
+  border-radius:999px; padding:6px 12px; font-size:13px; cursor:pointer;
+}
+
+.bottom-bar{
+  padding:12px 16px calc(12px + var(--safe-b)); border-top:1px solid var(--border);
+  background:var(--bg); position:sticky; bottom:0;
+  display:flex; gap:10px;
+}
+.btn{
+  flex:1; padding:15px 16px; border-radius:var(--radius); border:none; font-size:16px; font-weight:700;
+  cursor:pointer; font-family:var(--font-body); display:flex; align-items:center; justify-content:center; gap:8px;
+  min-height:52px;
+}
+.btn-primary{ background:var(--accent); color:#1a1200; }
+.btn-primary:disabled{ background:var(--surface-3); color:var(--text-faint); }
+.btn-secondary{ background:var(--surface-2); color:var(--text); border:1.5px solid var(--border); }
+.btn-ghost{ background:none; color:var(--text-dim); }
+.btn-danger{ background:var(--bad-dim); color:#ffb3ac; }
+
+/* Home screen */
+.hero{ padding:28px 20px 10px; }
+.hero .kicker{ color:var(--accent); font-weight:700; font-size:13px; letter-spacing:.08em; text-transform:uppercase; }
+.hero h1{ font-size:40px; line-height:1.02; margin:6px 0 4px; }
+.hero p{ color:var(--text-dim); font-size:15px; margin:0; line-height:1.5; }
+.home-actions{ padding:14px 20px; display:flex; flex-direction:column; gap:12px; }
+.big-action{
+  display:flex; align-items:center; gap:14px; padding:20px; border-radius:var(--radius-lg);
+  border:1.5px solid var(--border); background:var(--surface); cursor:pointer;
+}
+.big-action .ico{ font-size:28px; width:44px; text-align:center; }
+.big-action .txt{ flex:1; }
+.big-action .txt .t{ font-weight:700; font-size:17px; }
+.big-action .txt .d{ font-size:13px; color:var(--text-dim); margin-top:2px; }
+.big-action.primary{ background:linear-gradient(135deg, var(--accent), #d95f00); border-color:transparent; }
+.big-action.primary .txt .t, .big-action.primary .txt .d{ color:#1a1200; }
+.big-action.primary .txt .d{ color:#3a2500; }
+
+.history-list{ padding:0 20px 20px; display:flex; flex-direction:column; gap:8px; }
+.history-item{
+  display:flex; align-items:center; gap:12px; padding:14px; border-radius:var(--radius); background:var(--surface);
+  border:1px solid var(--border); cursor:pointer;
+}
+.history-item .badge{
+  width:38px; height:38px; border-radius:10px; display:flex; align-items:center; justify-content:center;
+  font-family:var(--font-display); font-weight:700; font-size:15px; flex-shrink:0;
+}
+.history-item .meta{ flex:1; min-width:0; }
+.history-item .meta .l1{ font-weight:700; font-size:14.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.history-item .meta .l2{ font-size:12.5px; color:var(--text-dim); }
+.history-item .chev{ color:var(--text-faint); }
+
+/* Section card */
+.card{ background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-lg); padding:16px; margin-bottom:14px; }
+.card h3{ margin:0 0 10px; font-size:19px; }
+
+/* live voice screen */
+.live-wrap{ flex:1; display:flex; flex-direction:column; }
+.status-strip{ padding:10px 16px; display:flex; align-items:center; gap:10px; }
+.status-strip .dot{ width:9px; height:9px; border-radius:50%; background:var(--na); }
+.status-strip .dot.live{ background:var(--ok); box-shadow:0 0 0 0 rgba(63,166,107,.6); animation:pulse 1.6s infinite; }
+@keyframes pulse{ 0%{box-shadow:0 0 0 0 rgba(63,166,107,.55);} 70%{box-shadow:0 0 0 10px rgba(63,166,107,0);} 100%{box-shadow:0 0 0 0 rgba(63,166,107,0);} }
+.status-strip .txt{ font-size:13px; color:var(--text-dim); flex:1; }
+.status-strip .counter{ font-family:var(--font-display); font-weight:700; font-size:15px; }
+
+.transcript-box{
+  margin:0 16px 10px; padding:14px 16px; background:var(--surface); border:1px solid var(--border);
+  border-radius:var(--radius); min-height:52px; font-size:15.5px; color:var(--text-dim); line-height:1.4;
+}
+.transcript-box.final{ color:var(--text); }
+.transcript-box .say{ color:var(--text-faint); font-size:12.5px; text-transform:uppercase; letter-spacing:.05em; font-weight:700; display:block; margin-bottom:4px; }
+
+.exceptions-scroll{ flex:1; overflow-y:auto; padding:0 16px; display:flex; flex-direction:column; gap:8px; }
+.exceptions-empty{ text-align:center; color:var(--text-faint); padding:30px 20px; font-size:14.5px; line-height:1.6; }
+.exceptions-empty .big{ font-size:44px; display:block; margin-bottom:8px; }
+.exc-item{ display:flex; align-items:flex-start; gap:10px; padding:12px 14px; border-radius:var(--radius); border:1px solid var(--border); }
+.exc-item.bad{ background:var(--bad-dim); border-color:#5c2521; }
+.exc-item.warn{ background:var(--warn-dim); border-color:#5c4a1f; }
+.exc-item .num{ font-size:22px; min-width:30px; }
+.exc-item .body{ flex:1; min-width:0; }
+.exc-item .body .t1{ font-weight:700; font-size:14.5px; }
+.exc-item .body .t2{ font-size:13px; color:var(--text-dim); margin-top:2px; }
+.exc-item .body .t3{ font-size:13px; color:var(--text); margin-top:4px; font-style:italic; }
+.exc-item .rm{ background:none; border:none; color:var(--text-faint); font-size:20px; cursor:pointer; padding:2px 4px; }
+
+.mic-zone{ padding:16px; display:flex; flex-direction:column; align-items:center; gap:10px; }
+.mic-btn{
+  width:84px; height:84px; border-radius:50%; border:none; background:var(--surface-2);
+  border:2px solid var(--border); color:var(--text); font-size:32px; display:flex; align-items:center; justify-content:center;
+  cursor:pointer; position:relative;
+}
+.mic-btn.on{ background:var(--accent); border-color:var(--accent); color:#1a1200; box-shadow:0 0 0 0 rgba(255,122,26,.5); animation:micpulse 1.4s infinite; }
+@keyframes micpulse{ 0%{box-shadow:0 0 0 0 rgba(255,122,26,.45);} 70%{box-shadow:0 0 0 16px rgba(255,122,26,0);} 100%{box-shadow:0 0 0 0 rgba(255,122,26,0);} }
+.mic-caption{ font-size:13px; color:var(--text-dim); text-align:center; }
+.mic-row-actions{ display:flex; gap:10px; width:100%; }
+.small-btn{ flex:1; padding:11px; border-radius:10px; background:var(--surface-2); border:1px solid var(--border); color:var(--text-dim); font-size:13px; font-weight:600; cursor:pointer; }
+
+/* grid screen */
+.section-title{ display:flex; align-items:center; gap:8px; margin:20px 0 10px; }
+.section-title:first-child{ margin-top:4px; }
+.section-title .sw{ width:10px; height:10px; border-radius:3px; }
+.section-title h3{ margin:0; font-size:17px; }
+.grid-item{ border-bottom:1px solid var(--border); padding:12px 0; }
+.grid-item-top{ display:flex; align-items:center; gap:10px; }
+.grid-item-top .n{ font-family:var(--font-display); font-weight:700; font-size:20px; color:var(--text-faint); width:26px; }
+.grid-item-top .label{ flex:1; font-size:14.5px; font-weight:600; line-height:1.3; }
+.grid-item-top .info-btn{ background:none; border:1px solid var(--border); color:var(--text-faint); border-radius:50%; width:22px; height:22px; font-size:12px; cursor:pointer; flex-shrink:0; }
+.role-toggles{ display:flex; gap:8px; margin-top:10px; }
+.role-toggle{ flex:1; text-align:center; }
+.role-toggle .rl{ font-size:10.5px; color:var(--text-faint); text-transform:uppercase; letter-spacing:.04em; margin-bottom:4px; font-weight:700; }
+.role-toggle.inactive{ opacity:.25; pointer-events:none; }
+.val-btn{
+  width:100%; padding:9px 4px; border-radius:9px; border:1.5px solid var(--border); background:var(--surface-2);
+  color:var(--text-dim); font-weight:700; font-size:13px; cursor:pointer; font-family:var(--font-display);
+}
+.val-btn.v-ok{ background:var(--ok-dim); border-color:var(--ok); color:var(--ok); }
+.val-btn.v-bad{ background:var(--bad-dim); border-color:var(--bad); color:#ff8b82; }
+.val-btn.v-na{ background:var(--na-dim); border-color:var(--na); color:var(--text-faint); }
+.val-btn.v-bp{ background:var(--warn-dim); border-color:var(--warn); color:var(--warn); }
+.comment-line{ margin-top:8px; }
+.comment-line input{ width:100%; background:var(--surface-2); border:1px solid var(--border); border-radius:8px; padding:8px 10px; color:var(--text); font-size:13.5px; }
+
+/* signature */
+.sig-card{ margin-bottom:16px; }
+.sig-card .sig-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
+.sig-card .sig-head .name{ font-weight:700; font-size:15px; }
+.sig-card .sig-head .who{ font-size:12px; color:var(--text-dim); }
+canvas.sigpad{ width:100%; height:130px; background:#fff; border-radius:10px; display:block; touch-action:none; }
+.sig-actions{ display:flex; justify-content:space-between; margin-top:6px; }
+.sig-actions .st{ font-size:12px; color:var(--text-faint); }
+.sig-actions button{ background:none; border:none; color:var(--accent); font-size:13px; font-weight:700; cursor:pointer; }
+
+/* recap */
+.recap-block{ margin-bottom:16px; }
+.recap-block h4{ font-family:var(--font-display); font-size:16px; margin:0 0 8px; color:var(--accent); text-transform:uppercase; letter-spacing:.04em; }
+.kv{ display:flex; font-size:14px; padding:4px 0; border-bottom:1px dashed var(--border); }
+.kv .k{ color:var(--text-dim); width:42%; }
+.kv .v{ flex:1; font-weight:600; }
+.recap-list-item{ font-size:13.5px; padding:8px 0; border-bottom:1px dashed var(--border); }
+.recap-list-item b{ color:var(--bad); }
+.recap-list-item.bp b{ color:var(--warn); }
+.score-pill{ display:inline-block; padding:2px 8px; border-radius:999px; font-size:11px; font-weight:700; margin-left:6px; }
+
+/* toast */
+#toast{
+  position:fixed; left:50%; bottom:120px; transform:translate(-50%,20px); background:var(--surface-3);
+  color:var(--text); padding:10px 18px; border-radius:999px; font-size:13.5px; opacity:0; pointer-events:none;
+  transition:all .25s; z-index:100; max-width:86%; text-align:center; border:1px solid var(--border);
+}
+#toast.show{ opacity:1; transform:translate(-50%,0); }
+
+/* modal */
+.modal-backdrop{ position:fixed; inset:0; background:rgba(0,0,0,.6); z-index:200; display:none; align-items:flex-end; justify-content:center; }
+.modal-backdrop.show{ display:flex; }
+.modal-sheet{ background:var(--surface); width:100%; max-width:480px; border-radius:20px 20px 0 0; padding:20px 20px calc(20px + var(--safe-b)); max-height:80vh; overflow-y:auto; }
+.modal-sheet h3{ margin:0 0 10px; }
+.modal-sheet p{ color:var(--text-dim); font-size:14.5px; line-height:1.6; }
+.modal-close{ display:block; width:100%; margin-top:14px; padding:13px; border-radius:12px; background:var(--surface-2); border:1px solid var(--border); color:var(--text); font-weight:700; }
+
+.cmd-example{ background:var(--surface-2); border-radius:10px; padding:10px 12px; margin:8px 0; font-size:13.5px; }
+.cmd-example code{ color:var(--accent); font-weight:700; }
+
+textarea.dictate{ width:100%; min-height:110px; padding:14px; border-radius:var(--radius); border:1.5px solid var(--border); background:var(--surface); color:var(--text); font-size:15.5px; font-family:inherit; resize:vertical; }
+
+.weather-row{ display:flex; gap:8px; }
+.weather-row .chip{ flex:1; flex-direction:column; gap:2px; font-size:12px; padding:10px 4px; }
+.weather-row .chip .ic{ font-size:20px; }
+
+/* ===================== Fac-similé imprimable (FE 28 QSE) ===================== */
+.paper-wrap{ flex:1; overflow:auto; background:#0b0d0f; padding:18px 0; -webkit-overflow-scrolling:touch; }
+.paper-zoom-hint{ text-align:center; color:var(--text-faint); font-size:12px; margin-bottom:10px; }
+.paper{
+  width:794px; min-height:1123px; margin:0 auto 24px; background:#fff; color:#111;
+  font-family:Arial,Helvetica,sans-serif; font-size:11px; padding:22px 26px 40px; position:relative;
+  box-shadow:0 8px 30px rgba(0,0,0,.5); box-sizing:border-box;
+}
+.paper table{ border-collapse:collapse; width:100%; }
+.paper td, .paper th{ border:1px solid #000; padding:3px 5px; vertical-align:middle; }
+.pp-head{ display:flex; align-items:stretch; border:1px solid #000; margin-bottom:8px; }
+.pp-head .logo{ flex:0 0 150px; display:flex; flex-direction:column; justify-content:center; align-items:center; border-right:1px solid #000; padding:8px; }
+.pp-head .logo .b1{ color:#0a4fa0; font-weight:800; font-size:19px; letter-spacing:.02em; }
+.pp-head .logo .b2{ color:#0a4fa0; font-size:7px; letter-spacing:.25em; margin-top:2px; }
+.pp-head .mid{ flex:1; display:flex; align-items:center; justify-content:center; text-align:center; font-weight:700; font-size:14px; padding:8px; text-transform:uppercase; }
+.pp-head .right{ flex:0 0 170px; display:flex; align-items:center; justify-content:center; text-align:center; font-size:11px; font-weight:600; border-left:1px solid #000; padding:8px; }
+.pp-banner{ border:1px solid #000; padding:6px 10px; font-weight:700; font-style:italic; font-size:10.5px; text-align:center; margin-bottom:0; }
+.pp-info-table td{ font-size:11px; }
+.pp-info-table .lbl{ font-weight:700; width:34%; background:#fff; }
+.pp-legend{ font-size:9.5px; line-height:1.5; }
+.pp-legend b{ display:block; margin-bottom:2px; }
+.pp-meteo{ display:flex; gap:14px; align-items:center; }
+.pp-meteo .m{ display:flex; align-items:center; gap:4px; font-size:15px; }
+.pp-meteo .box{ width:11px; height:11px; border:1.3px solid #000; display:inline-block; text-align:center; line-height:10px; font-size:9px; }
+.pp-sig-row td{ height:70px; width:25%; vertical-align:top; font-size:9.5px; }
+.pp-sig-row .sigimg{ display:block; max-width:100%; max-height:46px; margin-top:4px; }
+.pp-block-title{ background:#d9d9d9; font-weight:700; padding:5px 8px; border:1px solid #000; font-size:11px; }
+.pp-block-body{ border:1px solid #000; border-top:none; min-height:46px; padding:6px 8px; font-size:10.5px; white-space:pre-wrap; }
+.pp-actions-row{ display:flex; border:1px solid #000; border-top:none; }
+.pp-actions-row .resp{ flex:0 0 30%; border-right:1px solid #000; padding:6px 8px; font-size:9.5px; }
+.pp-actions-row .resp .sigimg{ display:block; max-width:100%; max-height:40px; margin-top:6px; }
+.pp-actions-row .txt{ flex:1; padding:6px 8px; font-size:10.5px; white-space:pre-wrap; }
+.pp-footer{ position:absolute; left:26px; right:26px; bottom:14px; display:flex; justify-content:space-between; font-size:8.5px; color:#333; }
+.pp-verso-title{ text-align:center; font-weight:700; font-size:11px; margin:2px 0 8px; }
+.pp-sec-table{ font-size:8px; margin-bottom:10px; }
+.pp-sec-table th{ background:#d9d9d9; font-size:8px; text-align:center; }
+.pp-sec-table td{ padding:2px 3px; }
+.pp-sec-table .lblcol{ text-align:left; width:26%; font-size:8px; }
+.pp-sec-table .grpname{ text-align:center; font-weight:700; }
+.pp-sec-table .cbx{ width:16px; text-align:center; font-weight:800; }
+.pp-sec-table .cmt{ width:16%; font-size:7.5px; text-align:left; }
+.pp-cat-label{ writing-mode:vertical-rl; transform:rotate(180deg); font-weight:800; text-align:center; background:#d9d9d9; }
+
+@media print{
+  body{ background:#fff; }
+  #app{ max-width:none; }
+  .no-print{ display:none !important; }
+  .paper-wrap{ background:#fff; padding:0; overflow:visible; }
+  .paper{ box-shadow:none; margin:0 auto; width:100%; }
+  .print-page{ page-break-after:always; }
+  .print-page:last-child{ page-break-after:auto; }
+  @page{ size:A4 portrait; margin:8mm; }
+}
+
+/* ===================== Mots-clés personnalisés ===================== */
+.kw-row{ border-bottom:1px solid var(--border); padding:12px 0; }
+.kw-row-top{ display:flex; align-items:baseline; gap:8px; }
+.kw-row-top .n{ font-family:var(--font-display); font-weight:700; font-size:18px; color:var(--text-faint); width:24px; flex-shrink:0; }
+.kw-row-top .label{ font-size:14px; font-weight:700; }
+.kw-default{ font-size:12px; color:var(--text-faint); margin:4px 0 8px 32px; line-height:1.5; }
+.kw-input-row{ display:flex; gap:8px; margin-left:32px; }
+.kw-input-row input{ flex:1; background:var(--surface-2); border:1px solid var(--border); border-radius:8px; padding:9px 10px; color:var(--text); font-size:13.5px; }
+.kw-input-row .mic-inline{ position:static; width:36px; height:36px; flex-shrink:0; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="toast"></div>
+<div class="modal-backdrop" id="modalBackdrop">
+  <div class="modal-sheet" id="modalSheet"></div>
+</div>
+<script>
+/* =========================================================================
+   SUIVI PAP — outil mobile de suivi de prestation collecte porte-à-porte
+   Reproduit la fiche FE 28 QSE. Pensé pour être utilisé à la voix,
+   depuis un véhicule suiveur, avec un minimum de manipulations tactiles.
+   ========================================================================= */
+
+/* ---------- Référentiel des 31 points (FE 28 QSE) ---------- */
+const SEC_ITEMS = [
+ [1,"Port des EPI","Tenue haute visibilité haut + bas, chaussures de sécurité, gants."],
+ [2,"Port de la ceinture de sécurité","Pour tout l'équipage en cabine, en permanence."],
+ [3,"Téléphone / oreillettes","Pas de téléphone en conduite ou sur marche-pied, pas d'oreillettes."],
+ [4,"Respect du code de la route","Signalisation, vitesse, feux…"],
+ [5,"Vitesse adaptée à la circulation","Rond-point, route étroite, chaussée glissante, carrefour, piste cyclable."],
+ [6,"Signalisations / organes de sécurité","Doivent être fonctionnels."],
+ [7,"Absence de bilatérale non autorisée","Bilatérale uniquement si sens unique ou voie étroite."],
+ [8,"Lève-conteneur / pas de vidage à la main","Ne pas porter les bacs, pas de transvasement d'un bac à l'autre."],
+ [9,"Montée / descente cabine","3 points d'appui, face à la cabine, tâter le sol avant de lâcher les barres."],
+ [10,"Montée / descente marche-pied","Attendre l'arrêt de la BOM, ne pas sauter, tâter le sol."],
+ [11,"Gestes et postures manutention","Pousser les bacs, plier les genoux, dos droit."],
+ [12,"Vigilance environnement routier","Piste cyclable, cyclistes, trottinettes, usagers alentours."],
+ [13,"Absence de précipitation","Marcher posément, ne pas courir ni trottiner."],
+ [14,"Position sur le marche-pied","Deux pieds sur le marche-pied, deux mains aux barres."],
+ [15,"Position pendant la levée du bac","Côté trottoir, hors zone de chute de bac, y compris double ripage."],
+ [16,"Absence de marche arrière non prévue","Pas de marche arrière de confort."],
+ [17,"Position équipiers en marche arrière prévue","Sur le côté, collecte arrêtée, chauffeur a les équipiers en visuel."],
+ [18,"Consignes bacs lourds","Prévenir l'encadrement, signalement."],
+ [19,"Interdiction de chiffonner / récupérer","Ne rien retirer des bacs ou corbeilles."],
+ [20,"Interdiction de fumer / vapoter","En cabine et sur marche-pied."],
+];
+const QUAL_ITEMS = [
+ [21,"Outils de travail complets","Pelle, balai, clés bacs, absorbant, en bon état."],
+ [22,"Comportement respectueux","Envers collègues, usagers et clients."],
+ [23,"Contrôle visuel des bacs avant collecte","Vérifier le contenu en surface avant de vider."],
+ [24,"Respect du type de déchets collectés","Signalement du refus si besoin."],
+ [25,"Remisage des bacs","Couvercle, position, frein, fermeture à clé."],
+ [26,"Respect des procédures clients","Refus de bacs, collecte de sacs…"],
+ [27,"Absence de déchets au sol après collecte","Trottoir, chaussée, cheminement des bacs."],
+ [28,"Propreté des vêtements de travail","EPI propres et en bon état."],
+];
+const ENV_ITEMS = [
+ [29,"Propreté et état du matériel","Extérieur du véhicule et cabine."],
+ [30,"Absence de bruit excessif","Klaxon, hurlement…"],
+ [31,"Absence de souillure","Jus de déchet sur la route, vanne de purge ouverte."],
+];
+const ALL_ITEMS = [...SEC_ITEMS, ...QUAL_ITEMS, ...ENV_ITEMS];
+const ITEM_MAP = Object.fromEntries(ALL_ITEMS.map(i=>[i[0],i]));
+function itemType(n){ return n<=20 ? 'bin' : 'grade'; }
+function itemSection(n){ return n<=20 ? 'SEC' : (n<=28 ? 'QUAL' : 'ENV'); }
+
+/* Cases pré-grisées "N.A." dans la trame Excel FE 28 QSE d'origine :
+   certains points ne concernent structurellement qu'un rôle (le conducteur
+   conduit, les équipiers montent/descendent...). Ces cases restent
+   verrouillées sur N.A. quel que soit l'équipage. */
+const FORCED_NA = {
+  4:  ['ec1','ec2'],   // Respect du code de la route — conducteur uniquement
+  5:  ['ec1','ec2'],   // Vitesse adaptée — conducteur uniquement
+  10: ['conducteur'],  // Montée/descente marche-pied — équipiers uniquement
+  14: ['conducteur'],  // Position sur marche-pied — équipiers uniquement
+  16: ['ec1','ec2'],   // Marche arrière non prévue — conducteur uniquement
+  17: ['conducteur'],  // Position équipiers en marche arrière prévue — équipiers uniquement
+  21: ['ec1','ec2'],   // Outils de travail complets — conducteur uniquement
+};
+function isForcedNA(n, role){ return !!(FORCED_NA[n] && FORCED_NA[n].includes(role)); }
+function defaultValueFor(n, role){
+  if(isForcedNA(n, role)) return 'NA';
+  return itemType(n)==='bin' ? 'OUI' : 3;
+}
+
+const ROLES = [
+  {key:'conducteur', label:'Conducteur', short:'C'},
+  {key:'ec1', label:'Équipier 1', short:'E1'},
+  {key:'ec2', label:'Équipier 2', short:'E2'},
+];
+
+const SECTEURS = ['Valence','Lyon / Vénissieux','Grenoble'];
+const DECHETS = ['OM','Tri','CS','Encombrants'];
+const METEO = [
+  {k:'soleil', ic:'☀️', l:'Soleil'},
+  {k:'pluie', ic:'🌧️', l:'Pluie'},
+  {k:'neige', ic:'❄️', l:'Neige'},
+  {k:'chaud', ic:'🌡️', l:'Chaud'},
+  {k:'vent', ic:'💨', l:'Vent'},
+];
+
+/* ---------- Stockage local (100% hors-ligne, aucun serveur) ---------- */
+const store = {
+  async get(key){
+    try{ const v = localStorage.getItem(key); return v ? JSON.parse(v) : null; }
+    catch(e){ console.error(e); return null; }
+  },
+  async set(key,val){
+    try{ localStorage.setItem(key, JSON.stringify(val)); return true; }
+    catch(e){ console.error(e); toast('Stockage plein ou indisponible — pensez à exporter/vider l\'historique.'); return null; }
+  },
+  async del(key){
+    try{ localStorage.removeItem(key); return true; }
+    catch(e){ return null; }
+  },
+  async list(prefix){
+    try{
+      const keys=[];
+      for(let i=0;i<localStorage.length;i++){
+        const k=localStorage.key(i);
+        if(!prefix || (k && k.startsWith(prefix))) keys.push(k);
+      }
+      return keys;
+    }catch(e){ return []; }
+  },
+};
+
+/* ---------- État de session ---------- */
+function blankReport(){
+  const items = {};
+  ALL_ITEMS.forEach(([n])=>{
+    items[n] = {
+      conducteur: defaultValueFor(n,'conducteur'),
+      ec1: defaultValueFor(n,'ec1'),
+      ec2: defaultValueFor(n,'ec2'),
+      comment: ''
+    };
+  });
+  return {
+    id: 'suivi_'+Date.now(),
+    createdAt: new Date().toISOString(),
+    date: todayStr(),
+    heureDebut:'', heureFin:'',
+    secteur:'', natureDechet:'', nParc:'',
+    evaluateur:'', conducteur:'', ec1:'', ec2:'',
+    meteo:'soleil',
+    items,
+    exceptions: [], // ordered log of {n, role, value, comment, ts}
+    debrief:'', actions:'',
+    signatures: { conducteur:null, ec1:null, ec2:null, evaluateur:null, responsable:null },
+    finished:false,
+  };
+}
+function todayStr(){
+  const d = new Date();
+  return String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+d.getFullYear();
+}
+function nowHM(){
+  const d = new Date();
+  return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
+}
+
+let R = blankReport();
+let recents = { secteurs:[], conducteurs:[], ec1s:[], ec2s:[], evaluateurs:[] };
+let customKeywords = {}; // { [itemNumber]: "phrase perso 1, phrase perso 2" }
+let lastFlagKey = null; // {n, role} for "commentaire ..." follow-up
+let currentScreen = 'home';
+let screenBeforeKeywords = 'home';
+
+async function loadCustomKeywords(){
+  const v = await store.get('settings:keywords');
+  if(v) customKeywords = v;
+}
+
+/* ---------- Utilitaires UI ---------- */
+function toast(msg, ms=2200){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(t._h);
+  t._h = setTimeout(()=>t.classList.remove('show'), ms);
+}
+function vibrate(pattern){ if(navigator.vibrate){ try{ navigator.vibrate(pattern); }catch(e){} } }
+function speak(text){
+  if(!R._voiceFeedback) return;
+  if(!('speechSynthesis' in window)) return;
+  try{
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang='fr-FR'; u.rate=1.05; u.pitch=1;
+    window.speechSynthesis.speak(u);
+  }catch(e){}
+}
+R._voiceFeedback = true;
+
+function openModal(html){
+  document.getElementById('modalSheet').innerHTML = html;
+  document.getElementById('modalBackdrop').classList.add('show');
+}
+function closeModal(){ document.getElementById('modalBackdrop').classList.remove('show'); }
+document.getElementById('modalBackdrop').addEventListener('click', e=>{ if(e.target.id==='modalBackdrop') closeModal(); });
+
+/* ---------- Normalisation texte vocal ---------- */
+function stripAccents(s){ return s.normalize('NFD').replace(/[\u0300-\u036f]/g,''); }
+function norm(s){ return stripAccents((s||'').toLowerCase()).replace(/[.,;!?]/g,' ').replace(/\s+/g,' ').trim(); }
+
+const NUM_WORDS = {
+  'un':1,'une':1,'deux':2,'trois':3,'quatre':4,'cinq':5,'six':6,'sept':7,'huit':8,'neuf':9,'dix':10,
+  'onze':11,'douze':12,'treize':13,'quatorze':14,'quinze':15,'seize':16,'dix sept':17,'dix-sept':17,
+  'dix huit':18,'dix-huit':18,'dix neuf':19,'dix-neuf':19,'vingt':20,'vingt et un':21,'vingt-et-un':21,
+  'vingt deux':22,'vingt-deux':22,'vingt trois':23,'vingt-trois':23,'vingt quatre':24,'vingt-quatre':24,
+  'vingt cinq':25,'vingt-cinq':25,'vingt six':26,'vingt-six':26,'vingt sept':27,'vingt-sept':27,
+  'vingt huit':28,'vingt-huit':28,'vingt neuf':29,'vingt-neuf':29,'trente':30,'trente et un':31,'trente-et-un':31,
+};
+function wordsToNumber(str){
+  // essaie de trouver un nombre écrit en toutes lettres dans la chaîne
+  const keys = Object.keys(NUM_WORDS).sort((a,b)=>b.length-a.length);
+  for(const k of keys){ if(str.includes(k)) return NUM_WORDS[k]; }
+  return null;
+}
+
+/* ---------- Reconnaissance des points par description parlée ----------
+   Permet de dire l'intitulé (avec plusieurs formulations) plutôt que
+   le numéro : "position équipier pendant la collecte équipier 1 non". */
+const STOPWORDS = new Set(['le','la','les','de','du','des','un','une','et','sur','dans','en','au','aux',
+  'pour','avec','ne','pas','ou','est','son','sa','ses','leur','leurs','se','que','qui','a','l','d',
+  'pendant','lors','c','ce','cette','ces','point','numero','item','concernant']);
+const ITEM_KEYWORDS = {
+ 1:["port des epi","les epi","gilet haute visibilite","chaussures de securite","tenue haute visibilite","equipements de protection"],
+ 2:["ceinture de securite","port de la ceinture","attache sa ceinture"],
+ 3:["telephone au volant","utilisation telephone","oreillettes","telephone en conduite","portable en conduite"],
+ 4:["code de la route","respect de la signalisation","feux rouges","limitation de vitesse","respect des panneaux"],
+ 5:["vitesse adaptee","vitesse de circulation","vitesse au rond point","vitesse dans les virages","chaussee glissante"],
+ 6:["organes de securite","feux de signalisation","clignotants","avertisseur sonore","fonctionnement des signalisations"],
+ 7:["bilaterale non autorisee","collecte bilaterale","des deux cotes de la rue","billaterale"],
+ 8:["leve conteneur","vidage a la main","vidage manuel des bacs","transvasement d un bac","vider les bacs a la main"],
+ 9:["montee descente cabine","trois points d appui","descente de cabine","monter dans la cabine"],
+ 10:["montee descente du marche pied","monter sur le marche pied","descendre du marche pied","sauter du marche pied","attendre l arret de la bom"],
+ 11:["gestes et postures","manutention des bacs","plier les genoux","garder le dos droit"],
+ 12:["vigilance environnement routier","cyclistes","pietons","trottinettes","piste cyclable","usagers alentours"],
+ 13:["precipitation lors de la collecte","courir pendant la collecte","marcher posement","ne pas courir"],
+ 14:["position sur le marche pied","les deux pieds sur le marche pied","tenue des barres","position de l equipier sur marche pied"],
+ 15:["position pendant la levee du bac","levee du bac","zone de danger chute de bac","double ripage","position des collaborateurs pendant la levee"],
+ 16:["marche arriere non prevue","marche arriere de confort","marche arriere non prevue sur le plan"],
+ 17:["marche arriere prevue","position des equipiers en marche arriere","equipiers visibles pendant la marche arriere","position equipier pendant la collecte"],
+ 18:["bac trop lourd","consigne bac lourd","signalement bac lourd","bacs lourds"],
+ 19:["chiffonner","recuperer dans les bacs","retirer des dechets du bac","interdiction de chiffonner"],
+ 20:["fumer","vapoter","cigarette en cabine","interdiction de fumer"],
+ 21:["outils de travail","pelle et balai","absorbant","cles des bacs","outils complets"],
+ 22:["comportement respectueux","comportement envers les usagers","comportement envers le client"],
+ 23:["controle visuel des bacs","verification du contenu du bac","controle avant collecte","controle visuel avant collecte"],
+ 24:["type de dechets collectes","tri des dechets","refus de bac","respect du type de dechets"],
+ 25:["remisage des bacs","couvercle du bac ferme","frein du bac","position du bac apres collecte"],
+ 26:["procedures clients","collecte de sacs","refus de bacs","respect des procedures client"],
+ 27:["dechets au sol","proprete du trottoir apres collecte","dechets tombes","absence de dechets au sol"],
+ 28:["proprete des vetements","tenue de travail propre","vetements de travail"],
+ 29:["proprete du materiel","etat du camion","proprete de la cabine","etat du vehicule"],
+ 30:["bruit excessif","klaxon","hurlement","bruit"],
+ 31:["souillure sur la route","jus de dechet","vanne de purge","fuite sur la chaussee","souillure"],
+};
+function matchItemByText(text){
+  const tokens = norm(text).split(' ').filter(w=>w && !STOPWORDS.has(w));
+  if(!tokens.length) return null;
+  let best=null, bestScore=0, second=0;
+  ALL_ITEMS.forEach(([n,label])=>{
+    let itemBest=0;
+    const custom = (customKeywords[n]||'').split(',').map(s=>s.trim()).filter(Boolean);
+    // les formulations personnalisées de l'utilisateur ont un léger bonus de priorité
+    const phrases = custom.map(p=>({p, bonus:0.12}))
+      .concat((ITEM_KEYWORDS[n]||[]).map(p=>({p, bonus:0})))
+      .concat([{p:label, bonus:0}]);
+    phrases.forEach(({p,bonus})=>{
+      const pTokens = norm(p).split(' ').filter(w=>w && !STOPWORDS.has(w));
+      if(!pTokens.length) return;
+      const matched = pTokens.filter(w=>tokens.includes(w)).length;
+      const score = Math.min(1, matched/pTokens.length + bonus);
+      if(score>itemBest) itemBest=score;
+    });
+    if(itemBest>bestScore){ second=bestScore; bestScore=itemBest; best=n; }
+    else if(itemBest>second){ second=itemBest; }
+  });
+  if(best && bestScore>=0.5 && (bestScore-second)>=0.15) return best;
+  return null;
+}
+
+/* =========================================================================
+   MOTEUR VOCAL — reconnaissance continue + interprétation de commandes
+   Grammaire : "point <N> <role> <valeur>" [+ "commentaire ..."]
+   Commandes globales : "tout conforme", "annule le dernier", "suivant"...
+   ========================================================================= */
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+let recognizer = null;
+let listening = false;
+let listeningIntended = false; // permet le redémarrage auto si coupure
+
+function initRecognizer(){
+  if(!SR) return null;
+  const r = new SR();
+  r.lang = 'fr-FR';
+  r.continuous = true;
+  r.interimResults = true;
+  r.maxAlternatives = 1;
+  r.onresult = onSpeechResult;
+  r.onerror = (e)=>{
+    if(e.error==='no-speech' || e.error==='aborted') return;
+    if(e.error==='not-allowed' || e.error==='service-not-allowed'){
+      listeningIntended = false;
+      setMicUI(false);
+      toast("Micro refusé — autorisez l'accès au micro pour ce site.");
+      return;
+    }
+    if(e.error==='network'){
+      listeningIntended = false;
+      setMicUI(false);
+      toast('Pas de connexion internet : la reconnaissance vocale est indisponible. Utilisez la grille tactile.');
+      return;
+    }
+    // toute autre erreur : on prévient plutôt que d'échouer silencieusement
+    toast('Micro interrompu ('+e.error+'). Ré-appuyez sur le micro pour reprendre.');
+  };
+  r.onend = ()=>{
+    listening = false;
+    if(listeningIntended){
+      try{ r.start(); listening = true; }catch(e){ setTimeout(()=>{ try{ r.start(); listening=true; }catch(e2){} }, 300); }
+    } else {
+      setMicUI(false);
+    }
+  };
+  return r;
+}
+
+function toggleMic(){
+  if(!SR){
+    openModal(`<h3>Reconnaissance vocale indisponible</h3>
+      <p>Ce navigateur ne permet pas la commande vocale continue (fréquent sur iPhone/Safari).
+      Utilisez les boutons 🎙️ à côté de chaque champ texte : ils déclenchent le clavier vocal du téléphone.
+      Pour le tableau des 31 points, utilisez la grille tactile ci-dessous.</p>
+      <button class="modal-close" onclick="closeModal()">Compris</button>`);
+    return;
+  }
+  if(!recognizer) recognizer = initRecognizer();
+  if(listening){
+    listeningIntended = false;
+    try{ recognizer.stop(); }catch(e){}
+    setMicUI(false);
+  } else {
+    try{
+      recognizer.start(); listening = true; listeningIntended = true;
+      setMicUI(true);
+      vibrate(30);
+    }catch(e){ /* déjà démarré */ }
+  }
+}
+function setMicUI(on){
+  const btn = document.getElementById('liveMicBtn');
+  const dot = document.getElementById('liveDot');
+  const txt = document.getElementById('liveStatusTxt');
+  if(btn){ btn.classList.toggle('on', on); btn.textContent = on ? '🎙️' : '🎤'; }
+  if(dot) dot.classList.toggle('live', on);
+  if(txt) txt.textContent = on ? "Écoute en cours…" : "Micro coupé — appuyez pour parler";
+}
+
+function onSpeechResult(event){
+  let interim = '', final = '';
+  for(let i=event.resultIndex; i<event.results.length; i++){
+    const t = event.results[i][0].transcript;
+    if(event.results[i].isFinal) final += t; else interim += t;
+  }
+  const box = document.getElementById('transcriptBox');
+  if(box){
+    if(final){ box.classList.add('final'); box.textContent = final; }
+    else if(interim){ box.classList.remove('final'); box.textContent = interim; }
+  }
+  if(final){ handleVoiceCommand(final); }
+}
+
+function handleVoiceCommand(raw){
+  const t = norm(raw);
+  if(!t) return;
+
+  // Commande : commentaire libre rattaché au dernier point signalé
+  let m = t.match(/^commentaire\s+(.+)/);
+  if(m && lastFlagKey){
+    const {n, role} = lastFlagKey;
+    R.items[n].comment = (R.items[n].comment ? R.items[n].comment+' — ' : '') + m[1];
+    const exc = R.exceptions.find(e=>e.n===n && e.role===role);
+    if(exc) exc.comment = R.items[n].comment;
+    toast('Commentaire ajouté au point '+n);
+    speak('Commentaire ajouté.');
+    refreshLiveScreen();
+    return;
+  }
+
+  // Commandes globales
+  if(/^(tout|tous)\s+(conforme|ok|bon|nickel)/.test(t) || /^rien\s+a\s+signaler/.test(t)){
+    resetAllToConform();
+    toast('Tout remis à conforme.');
+    speak('Tout est remis à conforme.');
+    refreshLiveScreen();
+    return;
+  }
+  if(/^(annule|supprime|efface)\s*(le\s+)?(dernier|derniere)/.test(t)){
+    undoLastException();
+    return;
+  }
+  if(/^(suivant|termine|c est termine|fin du suivi|fin de la collecte|passer au debrief)/.test(t)){
+    speak('Suivi terminé, passage au débrief.');
+    goTo('debrief');
+    return;
+  }
+  if(/^(pause|stop|coupe le micro|arrete l ecoute)/.test(t)){
+    toggleMic();
+    return;
+  }
+  if(/^(aide|comment ca marche|quelles commandes)/.test(t)){
+    showVoiceHelp();
+    return;
+  }
+
+  // Commande de point : "<numéro ou description du point> <role> <valeur...>"
+  m = t.match(/^(?:point|numero|item|numero de point)?\s*(\d{1,2}|.+?)\s+(conducteur|chauffeur|equipier\s*1|equipier\s*un|premier\s*equipier|ec\s*1|equipier\s*2|equipier\s*deux|deuxieme\s*equipier|ec\s*2|tous|toute\s*l\s*equipe|equipage|equipe)\s+(.+)$/);
+  if(m){
+    let n = parseInt(m[1],10);
+    if(isNaN(n)) n = wordsToNumber(m[1]);
+    if(!n) n = matchItemByText(m[1]);
+    const roleRaw = m[2];
+    const valueRaw = m[3];
+    if(!n || !ITEM_MAP[n]){
+      const guess = matchItemByText(t); // dernière tentative sur la phrase entière
+      if(guess){
+        toast("Point non identifié avec certitude. Vous vouliez peut-être « "+guess+". "+ITEM_MAP[guess][1]+" » ? Redites avec « point "+guess+" ».");
+        speak("Je pense au point "+guess+", "+ITEM_MAP[guess][1]+". Redites avec le numéro pour confirmer.");
+      } else {
+        toast("Point non reconnu : « "+raw+" ». Reformulez ou dites le numéro.");
+        speak("Je n'ai pas identifié le point. Reformulez ou dites le numéro.");
+      }
+      vibrate([40,60,40]);
+      return;
+    }
+    let roles = [];
+    if(/^conducteur|chauffeur$/.test(roleRaw)) roles=['conducteur'];
+    else if(/equipier\s*1|equipier\s*un|premier\s*equipier|ec\s*1/.test(roleRaw)) roles=['ec1'];
+    else if(/equipier\s*2|equipier\s*deux|deuxieme\s*equipier|ec\s*2/.test(roleRaw)) roles=['ec2'];
+    else roles=['conducteur','ec1','ec2'];
+    // filtrer les rôles inactifs (équipier non renseigné)
+    roles = roles.filter(r => (r==='conducteur' || (r==='ec1'? !!R.ec1 : !!R.ec2)) && !isForcedNA(n, r));
+    if(!roles.length){
+      toast("Ce point n'est pas applicable à ce rôle (case grisée d'origine).");
+      speak("Ce point n'est pas applicable à ce rôle.");
+      return;
+    }
+    applyVoiceValue(n, roles, valueRaw, raw);
+    return;
+  }
+
+  toast("Non compris : « "+raw+" ». Dites par exemple « point 4 conducteur non ».");
+  vibrate([40,60,40]);
+}
+
+function applyVoiceValue(n, roles, valueRaw, rawFull){
+  const type = itemType(n);
+  let value = null;
+  if(type==='bin'){
+    if(/non\s*applicable|^na$|\bna\b/.test(valueRaw)) value='NA';
+    else if(/^non|non\s*conforme/.test(valueRaw)) value='NON';
+    else if(/oui|conforme/.test(valueRaw)) value='OUI';
+  } else {
+    if(/bonne\s*pratique|\bbp\b/.test(valueRaw)) value='BP';
+    else if(/non\s*applicable|\bna\b/.test(valueRaw)) value='NA';
+    else if(/\b3\b|trois/.test(valueRaw)) value=3;
+    else if(/\b2\b|deux/.test(valueRaw)) value=2;
+    else if(/\b1\b|^un\b/.test(valueRaw)) value=1;
+  }
+  if(value===null){
+    toast("Valeur non reconnue pour le point "+n+" : « "+rawFull+" »");
+    speak("Valeur non comprise.");
+    return;
+  }
+  roles.forEach(role=>{
+    R.items[n][role] = value;
+    logException(n, role, value);
+  });
+  lastFlagKey = {n, role: roles[roles.length-1]};
+  const roleLabel = roles.length===3 ? 'toute l\'équipe' : ROLES.find(r=>r.key===roles[0]).label;
+  const valLabel = String(value)==='OUI'?'conforme': String(value)==='NON'?'non conforme': value;
+  toast('Point '+n+' — '+roleLabel+' — '+valLabel);
+  speak('Point '+n+', '+roleLabel+', '+valLabel+'.');
+  vibrate(30);
+  refreshLiveScreen();
+}
+
+function logException(n, role, value){
+  const isDefault = value === defaultValueFor(n, role);
+  // retire une éventuelle entrée existante pour (n, role)
+  R.exceptions = R.exceptions.filter(e=>!(e.n===n && e.role===role));
+  if(!isDefault){
+    R.exceptions.push({n, role, value, comment:'', ts:Date.now()});
+  }
+}
+function undoLastException(){
+  if(!R.exceptions.length){ toast('Aucune anomalie à annuler.'); speak('Rien à annuler.'); return; }
+  const last = R.exceptions.pop();
+  R.items[last.n][last.role] = defaultValueFor(last.n, last.role);
+  R.items[last.n].comment = '';
+  toast('Point '+last.n+' remis à conforme.');
+  speak('Dernière anomalie annulée.');
+  refreshLiveScreen();
+}
+function resetAllToConform(){
+  ALL_ITEMS.forEach(([n])=>{
+    ROLES.forEach(r=>{ R.items[n][r.key] = defaultValueFor(n, r.key); });
+    R.items[n].comment='';
+  });
+  R.exceptions = [];
+}
+function showVoiceHelp(){
+  openModal(`<h3>Commandes vocales</h3>
+  <p>Par défaut, tout est considéré <b>conforme</b>. Signalez uniquement les écarts. Vous pouvez citer le <b>numéro</b> ou <b>décrire le point</b> avec vos propres mots.</p>
+  <div class="cmd-example">👉 <code>« Point 4 conducteur non »</code><br>Sécurité non conforme pour le conducteur.</div>
+  <div class="cmd-example">👉 <code>« Position équipier pendant la collecte équipier 1 non »</code><br>Reconnaît le point 15 sans citer le numéro.</div>
+  <div class="cmd-example">👉 <code>« Ceinture de sécurité conducteur non »</code><br>Fonctionne aussi par mots-clés.</div>
+  <div class="cmd-example">👉 <code>« Remisage des bacs équipier 2 deux »</code><br>Note qualité 1, 2, 3 ou « bp ».</div>
+  <div class="cmd-example">👉 <code>« Commentaire remisage à revoir »</code><br>Attache un commentaire au dernier point signalé.</div>
+  <div class="cmd-example">👉 <code>« Tout conforme »</code><br>Réinitialise tous les points.</div>
+  <div class="cmd-example">👉 <code>« Annule le dernier »</code><br>Retire la dernière anomalie signalée.</div>
+  <div class="cmd-example">👉 <code>« Suivant »</code><br>Passe à l'étape débrief.</div>
+  <p style="font-size:12.5px;">Si la description n'est pas reconnue à coup sûr, l'app vous propose son meilleur candidat — répétez avec le numéro pour confirmer. Vous pouvez aussi enregistrer vos propres formulations dans <b>« Mes mots-clés »</b> depuis l'accueil.</p>
+  <button class="modal-close" onclick="closeModal()">Compris</button>`);
+}
+
+/* =========================================================================
+   DICTÉE PONCTUELLE POUR CHAMPS TEXTE (mic inline)
+   Utilise une reconnaissance ponctuelle (non continue) — fonctionne aussi
+   pour dicter un nom, un secteur, le débrief, les actions...
+   ========================================================================= */
+function dictateInto(inputId, {append=false, capitalize=false}={}){
+  if(!SR){ toast('Dictée vocale indisponible sur ce navigateur — utilisez le clavier (bouton micro du clavier iOS possible).'); return; }
+  const el = document.getElementById(inputId);
+  const btn = document.getElementById('mic_'+inputId);
+  const launch = ()=>{
+    const r = new SR();
+    r.lang='fr-FR'; r.continuous=false; r.interimResults=true;
+    if(btn) btn.classList.add('on');
+    r.onresult = (ev)=>{
+      let t='';
+      for(let i=0;i<ev.results.length;i++) t += ev.results[i][0].transcript;
+      if(capitalize) t = t.charAt(0).toUpperCase()+t.slice(1);
+      el.value = append && el.dataset.base ? (el.dataset.base+' '+t) : t;
+    };
+    r.onstart = ()=>{ el.dataset.base = append ? el.value : ''; };
+    r.onerror = (e)=>{
+      if(btn) btn.classList.remove('on');
+      if(e.error==='not-allowed' || e.error==='service-not-allowed') toast("Micro refusé — autorisez l'accès au micro.");
+      else if(e.error==='network') toast('Pas de connexion internet : la dictée vocale est indisponible.');
+      else if(e.error!=='no-speech' && e.error!=='aborted') toast('Dictée interrompue ('+e.error+'), réessayez.');
+    };
+    r.onend = ()=>{
+      if(btn) btn.classList.remove('on');
+      el.dispatchEvent(new Event('input'));
+      vibrate(20);
+    };
+    try{ r.start(); }
+    catch(err){
+      if(btn) btn.classList.remove('on');
+      // le micro était probablement encore occupé par l'écoute continue : on réessaie une fois
+      setTimeout(()=>{ try{ r.start(); if(btn) btn.classList.add('on'); }catch(e2){ toast('Micro occupé, réessayez.'); } }, 300);
+    }
+  };
+  // libère le micro continu s'il est en train d'écouter, avant de lancer la dictée ponctuelle
+  if(listening){
+    listeningIntended = false;
+    try{ recognizer && recognizer.stop(); }catch(e){}
+    setMicUI(false);
+    setTimeout(launch, 250);
+  } else {
+    launch();
+  }
+}
+
+/* =========================================================================
+   SIGNATURE — canvas dessinable
+   ========================================================================= */
+const sigPads = {};
+function setupSigCanvas(canvas){
+  const ctx = canvas.getContext('2d');
+  function resize(){
+    const ratio = window.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+    const prevData = canvas.toDataURL ? canvas.toDataURL() : null;
+    canvas.width = rect.width*ratio; canvas.height = rect.height*ratio;
+    ctx.scale(ratio, ratio);
+    ctx.fillStyle='#fff'; ctx.fillRect(0,0,rect.width,rect.height);
+    ctx.lineWidth=2.4; ctx.lineCap='round'; ctx.strokeStyle='#14171a';
+  }
+  resize();
+  let drawing=false, lastX=0, lastY=0;
+  function pos(e){
+    const rect = canvas.getBoundingClientRect();
+    const p = e.touches ? e.touches[0] : e;
+    return [p.clientX-rect.left, p.clientY-rect.top];
+  }
+  function start(e){ e.preventDefault(); drawing=true; [lastX,lastY]=pos(e); }
+  function move(e){
+    if(!drawing) return; e.preventDefault();
+    const [x,y]=pos(e);
+    ctx.beginPath(); ctx.moveTo(lastX,lastY); ctx.lineTo(x,y); ctx.stroke();
+    [lastX,lastY]=[x,y];
+    canvas.dataset.signed='1';
+  }
+  function end(e){ drawing=false; saveSignature(canvas.id); }
+  canvas.addEventListener('mousedown', start);
+  canvas.addEventListener('mousemove', move);
+  window.addEventListener('mouseup', end);
+  canvas.addEventListener('touchstart', start, {passive:false});
+  canvas.addEventListener('touchmove', move, {passive:false});
+  canvas.addEventListener('touchend', end);
+  sigPads[canvas.id] = canvas;
+}
+function clearSig(role){
+  const canvas = document.getElementById('sig_'+role);
+  const ctx = canvas.getContext('2d');
+  const rect = canvas.getBoundingClientRect();
+  ctx.save(); ctx.setTransform(1,0,0,1,0,0); ctx.fillStyle='#fff';
+  ctx.fillRect(0,0,canvas.width,canvas.height); ctx.restore();
+  canvas.dataset.signed='';
+  R.signatures[role] = null;
+  updateSigStatus(role);
+}
+function saveSignature(canvasId){
+  const role = canvasId.replace('sig_','');
+  const canvas = document.getElementById(canvasId);
+  R.signatures[role] = canvas.dataset.signed ? canvas.toDataURL('image/png') : null;
+  updateSigStatus(role);
+}
+function updateSigStatus(role){
+  const el = document.getElementById('sigstatus_'+role);
+  if(el) el.textContent = R.signatures[role] ? '✓ Signé' : 'En attente';
+}
+
+/* =========================================================================
+   ROUTEUR & RENDU DES ÉCRANS
+   ========================================================================= */
+const SCREEN_ORDER = ['setup','live','grid','debrief','signatures','recap'];
+function progressPct(){
+  const idx = SCREEN_ORDER.indexOf(currentScreen);
+  if(idx<0) return 0;
+  return Math.round(((idx+1)/SCREEN_ORDER.length)*100);
+}
+
+function goTo(screen){
+  // libère le micro continu si on quitte l'écran de suivi vocal
+  if(currentScreen==='live' && screen!=='live' && listening){
+    listeningIntended = false;
+    try{ recognizer && recognizer.stop(); }catch(e){}
+  }
+  currentScreen = screen;
+  render();
+  const scroller = document.querySelector('.scroll, .exceptions-scroll');
+  if(scroller) scroller.scrollTop = 0;
+  window.scrollTo(0,0);
+}
+
+function render(){
+  const app = document.getElementById('app');
+  if(currentScreen==='home') return renderHome(app);
+  if(currentScreen==='setup') return renderSetup(app);
+  if(currentScreen==='live') return renderLive(app);
+  if(currentScreen==='grid') return renderGrid(app);
+  if(currentScreen==='debrief') return renderDebrief(app);
+  if(currentScreen==='signatures') return renderSignatures(app);
+  if(currentScreen==='recap') return renderRecap(app);
+  if(currentScreen==='history') return renderHistory(app);
+  if(currentScreen==='print') return renderPrint(app);
+  if(currentScreen==='keywords') return renderKeywords(app);
+}
+
+/* ---------- ÉCRAN ACCUEIL ---------- */
+async function renderHome(app){
+  const list = await store.list('suivi:');
+  const count = list.length;
+  app.innerHTML = `
+    <div class="hero">
+      <div class="kicker">Pizzorno Environnement · QSE</div>
+      <h1>Suivi PAP</h1>
+      <p>Suivi de prestation collecte en porte-à-porte — commandez à la voix, gardez les yeux sur la route.</p>
+    </div>
+    <div class="home-actions">
+      <div class="big-action primary" onclick="startNewSuivi()">
+        <div class="ico">🎙️</div>
+        <div class="txt"><div class="t">Nouveau suivi</div><div class="d">Démarrer un suivi équipage</div></div>
+      </div>
+      <div class="big-action" onclick="goTo('history')">
+        <div class="ico">🗂️</div>
+        <div class="txt"><div class="t">Historique</div><div class="d">${count} suivi${count>1?'s':''} enregistré${count>1?'s':''}</div></div>
+      </div>
+      <div class="big-action" onclick="openKeywords()">
+        <div class="ico">🗣️</div>
+        <div class="txt"><div class="t">Mes mots-clés</div><div class="d">Personnaliser vos formulations vocales</div></div>
+      </div>
+    </div>
+    <div style="flex:1"></div>
+    <div class="scroll" style="flex:0; padding-top:0;">
+      <div class="hint" style="text-align:center;">
+        Fiche conforme à la trame FE 28 QSE — données stockées uniquement sur cet appareil (aucun serveur).
+        ${!navigator.onLine ? '<br><span style="color:var(--warn); font-weight:700;">● Hors connexion — utilisez la grille tactile, le vocal continu est indisponible.</span>' : ''}
+      </div>
+      <div class="hint" style="text-align:center; margin-top:8px;"><span style="color:var(--accent); font-weight:700; cursor:pointer;" onclick="showOfflineInfo()">ⓘ Fonctionnement hors-ligne</span></div>
+    </div>
+  `;
+}
+function showOfflineInfo(){
+  openModal(`<h3>Fonctionnement hors-ligne</h3>
+  <p><b>Fonctionne sans connexion :</b> ouverture de l'app, saisie, grille tactile des 31 points, signatures, débrief/actions au clavier, rapport officiel à l'écran et impression/PDF, historique des suivis (tout est stocké uniquement sur ce téléphone).</p>
+  <p><b>Nécessite une connexion au moment où vous parlez :</b> la reconnaissance vocale continue et les boutons 🎤 de dictée. C'est une limite des navigateurs (le texte est transcrit par un service en ligne) — aucune app web ne peut contourner ça sans un moteur vocal embarqué de plusieurs dizaines de Mo. Si le réseau coupe, l'app vous le signale et bascule sur la grille tactile.</p>
+  <p><b>Pour une utilisation vraiment autonome :</b> enregistrez ce fichier HTML sur le téléphone (ou ajoutez-le à l'écran d'accueil) et ouvrez-le depuis le stockage local plutôt que depuis un lien — plus besoin de rouvrir Claude.</p>
+  <button class="modal-close" onclick="closeModal()">Compris</button>`);
+}
+function startNewSuivi(){
+  R = blankReport();
+  R._voiceFeedback = true;
+  lastFlagKey = null;
+  goTo('setup');
+}
+
+/* ---------- ÉCRAN 1 · PARAMÉTRAGE ---------- */
+function renderSetup(app){
+  app.innerHTML = `
+    ${topbar('Nouveau suivi', 'Étape 1 · Informations')}
+    <div class="screen active">
+      <div class="scroll">
+
+        <div class="field-label">Secteur</div>
+        <div class="chip-row" id="secteurChips">
+          ${SECTEURS.map(s=>`<div class="chip ${R.secteur===s?'selected':''}" onclick="setField('secteur','${escAttr(s)}')">${s}</div>`).join('')}
+        </div>
+        <div class="input-with-mic" style="margin-top:8px;">
+          <input class="text-input" id="secteur" placeholder="Ou dictez / saisissez le secteur" value="${escAttr(R.secteur)}" oninput="R.secteur=this.value; syncChipRow('secteurChips', SECTEURS, R.secteur)">
+          <button class="mic-inline" id="mic_secteur" onclick="dictateInto('secteur',{capitalize:true})">🎤</button>
+        </div>
+
+        <div class="field-label">Nature du déchet</div>
+        <div class="chip-row">
+          ${DECHETS.map(s=>`<div class="chip ${R.natureDechet===s?'selected':''}" onclick="setField('natureDechet','${escAttr(s)}')">${s}</div>`).join('')}
+        </div>
+
+        <div class="field-label">N° Parc</div>
+        <input class="text-input" id="nParc" inputmode="numeric" placeholder="Ex : 23054" value="${escAttr(R.nParc)}" oninput="R.nParc=this.value">
+
+        <div class="field-label">Équipage</div>
+        <div class="input-with-mic">
+          <input class="text-input" id="conducteur" placeholder="Nom du conducteur" value="${escAttr(R.conducteur)}" oninput="R.conducteur=this.value">
+          <button class="mic-inline" id="mic_conducteur" onclick="dictateInto('conducteur',{capitalize:true})">🎤</button>
+        </div>
+        <div class="row-2" style="margin-top:8px;">
+          <div class="input-with-mic">
+            <input class="text-input" id="ec1" placeholder="Équipier 1" value="${escAttr(R.ec1)}" oninput="R.ec1=this.value">
+            <button class="mic-inline" id="mic_ec1" onclick="dictateInto('ec1',{capitalize:true})">🎤</button>
+          </div>
+        </div>
+        <div class="row-2" style="margin-top:8px;">
+          <div class="input-with-mic">
+            <input class="text-input" id="ec2" placeholder="Équipier 2 (optionnel)" value="${escAttr(R.ec2)}" oninput="R.ec2=this.value">
+            <button class="mic-inline" id="mic_ec2" onclick="dictateInto('ec2',{capitalize:true})">🎤</button>
+          </div>
+        </div>
+
+        <div class="field-label">Suivi assuré par</div>
+        <div class="input-with-mic">
+          <input class="text-input" id="evaluateur" placeholder="Votre nom" value="${escAttr(R.evaluateur)}" oninput="R.evaluateur=this.value">
+          <button class="mic-inline" id="mic_evaluateur" onclick="dictateInto('evaluateur',{capitalize:true})">🎤</button>
+        </div>
+
+        <div class="field-label">Météo</div>
+        <div class="weather-row">
+          ${METEO.map(m=>`<div class="chip ${R.meteo===m.k?'selected':''}" onclick="setField('meteo','${m.k}')"><span class="ic">${m.ic}</span>${m.l}</div>`).join('')}
+        </div>
+
+        <div class="field-label">Horaire</div>
+        <div class="row-2">
+          <div>
+            <div class="hint" style="margin:0 0 4px;">Début</div>
+            <button class="btn btn-secondary" style="width:100%;" onclick="R.heureDebut=nowHM(); render();">${R.heureDebut || '⏱ Marquer le départ'}</button>
+          </div>
+          <div>
+            <div class="hint" style="margin:0 0 4px;">Date</div>
+            <div class="text-input" style="display:flex;align-items:center;">${R.date}</div>
+          </div>
+        </div>
+
+      </div>
+      <div class="bottom-bar">
+        <button class="btn btn-ghost" onclick="goTo('home')">Annuler</button>
+        <button class="btn btn-primary" ${setupValid()?'':'disabled'} onclick="beginLive()">Démarrer le suivi →</button>
+      </div>
+    </div>
+  `;
+}
+function setField(field, val){ R[field]=val; render(); }
+function syncChipRow(rowId, options, val){
+  const row = document.getElementById(rowId);
+  if(!row) return;
+  [...row.children].forEach((c,i)=>c.classList.toggle('selected', options[i]===val));
+}
+function setupValid(){ return R.secteur && R.natureDechet && R.conducteur && R.evaluateur; }
+function escAttr(s){ return (s||'').replace(/"/g,'&quot;'); }
+function beginLive(){
+  if(!R.heureDebut) R.heureDebut = nowHM();
+  goTo('live');
+}
+
+/* ---------- ÉCRAN 2 · SUIVI VOCAL EN DIRECT ---------- */
+function renderLive(app){
+  const excCount = R.exceptions.length;
+  app.innerHTML = `
+    ${topbar(R.conducteur || 'Équipage', 'Étape 2 · Suivi en direct', true)}
+    <div class="screen active live-wrap">
+      <div class="status-strip">
+        <div class="dot" id="liveDot"></div>
+        <div class="txt" id="liveStatusTxt">Micro coupé — appuyez pour parler</div>
+        <div class="counter">${excCount} anomalie${excCount>1?'s':''}</div>
+      </div>
+      <div class="transcript-box" id="transcriptBox">
+        <span class="say">Dites par exemple</span>« Point 4 conducteur non » ou « ceinture de sécurité conducteur non »
+      </div>
+      <div class="exceptions-scroll" id="excScroll">
+        ${renderExceptionList()}
+      </div>
+      <div class="mic-zone">
+        <div class="mic-row-actions">
+          <button class="small-btn" onclick="showVoiceHelp()">❓ Commandes</button>
+          <button class="small-btn" onclick="goTo('grid')">🔢 Grille tactile</button>
+          <button class="small-btn" onclick="openKeywords()">🗣️ Mes mots</button>
+        </div>
+        <button class="mic-btn" id="liveMicBtn" onclick="toggleMic()">🎤</button>
+        <div class="mic-caption">Appuyez une fois : le micro reste ouvert en continu</div>
+      </div>
+      <div class="bottom-bar">
+        <button class="btn btn-secondary" onclick="goTo('setup')">← Infos</button>
+        <button class="btn btn-primary" onclick="goTo('debrief')">Terminer le suivi →</button>
+      </div>
+    </div>
+  `;
+  setMicUI(listening);
+}
+function renderExceptionList(){
+  if(!R.exceptions.length){
+    return `<div class="exceptions-empty"><span class="big">✅</span>Tout est conforme pour l'instant.<br>Les écarts signalés à la voix apparaîtront ici.</div>`;
+  }
+  return R.exceptions.slice().reverse().map(e=>{
+    const item = ITEM_MAP[e.n];
+    const roleLabel = ROLES.find(r=>r.key===e.role).label;
+    const isBad = itemType(e.n)==='bin' ? e.value==='NON' : (e.value===1 || e.value===2);
+    const cls = isBad ? 'bad' : 'warn';
+    const valLabel = itemType(e.n)==='bin' ? (e.value==='NON'?'Non conforme':e.value) : (e.value==='BP'?'Bonne pratique':'Note '+e.value);
+    return `<div class="exc-item ${cls}">
+      <div class="num">${isBad?'⚠️':'⭐'}</div>
+      <div class="body">
+        <div class="t1">${e.n}. ${item[1]}</div>
+        <div class="t2">${roleLabel} — ${valLabel}</div>
+        ${e.comment?`<div class="t3">"${escHtml(e.comment)}"</div>`:''}
+      </div>
+      <button class="rm" onclick="removeException(${e.n},'${e.role}')">✕</button>
+    </div>`;
+  }).join('');
+}
+function escHtml(s){ return (s||'').replace(/</g,'&lt;'); }
+function removeException(n, role){
+  R.items[n][role] = defaultValueFor(n, role);
+  R.items[n].comment='';
+  R.exceptions = R.exceptions.filter(e=>!(e.n===n && e.role===role));
+  refreshLiveScreen();
+}
+function refreshLiveScreen(){
+  if(currentScreen==='live'){
+    document.getElementById('excScroll').innerHTML = renderExceptionList();
+    document.querySelector('.counter').textContent = R.exceptions.length+' anomalie'+(R.exceptions.length>1?'s':'');
+  }
+  if(currentScreen==='grid') renderGrid(document.getElementById('app'));
+}
+
+/* ---------- ÉCRAN · GRILLE TACTILE (secours / correction) ---------- */
+function gridSectionHtml(title, items, colorVar, sectionKey){
+  return `<div class="section-title"><div class="sw" style="background:${colorVar}"></div><h3>${title}</h3></div>` +
+    items.map(([n,label])=>gridItemHtml(n,label)).join('');
+}
+function gridItemHtml(n, label){
+  const type = itemType(n);
+  const roles = ROLES.map(r=>{
+    const locked = isForcedNA(n, r.key);
+    const active = !locked && (r.key==='conducteur' || (r.key==='ec1'?!!R.ec1:!!R.ec2));
+    const val = R.items[n][r.key];
+    const vClass = type==='bin'
+      ? (val==='OUI'?'v-ok':val==='NON'?'v-bad':'v-na')
+      : (val==='BP'?'v-bp':val===3?'v-ok':val==='NA'?'v-na':'v-bad');
+    const clickable = active ? `onclick="cycleValue(${n},'${r.key}')"` : '';
+    return `<div class="role-toggle ${active?'':'inactive'}" ${locked?'title="Non applicable pour ce rôle"':''}>
+        <div class="rl">${r.short}${locked?' 🔒':''}</div>
+        <button class="val-btn ${vClass}" ${clickable}>${val}</button>
+      </div>`;
+  }).join('');
+  return `<div class="grid-item">
+    <div class="grid-item-top">
+      <div class="n">${n}</div>
+      <div class="label">${label}</div>
+      <button class="info-btn" onclick="showItemInfo(${n})">i</button>
+    </div>
+    <div class="role-toggles">${roles}</div>
+    ${(R.exceptions.find(e=>e.n===n)) ? `<div class="comment-line"><input placeholder="Commentaire…" value="${escAttr(R.items[n].comment)}" oninput="setItemComment(${n}, this.value)"></div>` : ''}
+  </div>`;
+}
+function cycleValue(n, role){
+  if(isForcedNA(n, role)) return; // case verrouillée sur N.A. (non applicable à ce rôle)
+  const type = itemType(n);
+  const cur = R.items[n][role];
+  let next;
+  if(type==='bin'){ next = cur==='OUI' ? 'NON' : cur==='NON' ? 'NA' : 'OUI'; }
+  else { next = cur==='BP' ? 3 : cur===3 ? 2 : cur===2 ? 1 : cur===1 ? 'NA' : 'BP'; }
+  R.items[n][role] = next;
+  logException(n, role, next);
+  lastFlagKey = {n, role};
+  vibrate(20);
+  renderGrid(document.getElementById('app'));
+}
+function setItemComment(n, val){
+  R.items[n].comment = val;
+  const exc = R.exceptions.find(e=>e.n===n);
+  if(exc) exc.comment = val;
+}
+function showItemInfo(n){
+  const item = ITEM_MAP[n];
+  const locked = FORCED_NA[n];
+  const lockedTxt = locked ? `<p style="color:var(--warn); font-size:13px;">🔒 Non applicable pour : ${locked.map(r=>ROLES.find(x=>x.key===r).label).join(', ')} — grisé d'origine dans la fiche FE 28 QSE.</p>` : '';
+  openModal(`<h3>${n}. ${item[1]}</h3><p>${item[2]}</p>${lockedTxt}<button class="modal-close" onclick="closeModal()">Fermer</button>`);
+}
+function renderGrid(app){
+  const excCount = R.exceptions.length;
+  app.innerHTML = `
+    ${topbar('Grille des 31 points', 'Correction manuelle', true)}
+    <div class="screen active">
+      <div class="scroll">
+        <div class="hint" style="margin-bottom:10px;">Tout est conforme par défaut. Touchez une pastille pour changer sa valeur. ${excCount} anomalie${excCount>1?'s':''} actuellement.</div>
+        ${gridSectionHtml('Sécurité (Oui / Non / N.A.)', SEC_ITEMS, 'var(--bad)')}
+        ${gridSectionHtml('Qualité (BP / 3 / 2 / 1 / N.A.)', QUAL_ITEMS, 'var(--warn)')}
+        ${gridSectionHtml('Environnement (BP / 3 / 2 / 1 / N.A.)', ENV_ITEMS, 'var(--ok)')}
+      </div>
+      <div class="bottom-bar">
+        <button class="btn btn-secondary" onclick="goTo('live')">← Vocal</button>
+        <button class="btn btn-primary" onclick="goTo('debrief')">Terminer le suivi →</button>
+      </div>
+    </div>
+  `;
+}
+
+/* ---------- ÉCRAN 3 · DÉBRIEF & ACTIONS ---------- */
+function renderDebrief(app){
+  app.innerHTML = `
+    ${topbar('Débrief', 'Étape 3 · Retour à chaud', true)}
+    <div class="screen active">
+      <div class="scroll">
+        <div class="field-label">Retour du suivi fait à l'équipage — debrief à chaud</div>
+        <div class="input-with-mic">
+          <textarea class="dictate" id="debrief" placeholder="Dictez ou saisissez le retour fait à l'équipe…" oninput="R.debrief=this.value">${escHtmlArea(R.debrief)}</textarea>
+          <button class="mic-inline" id="mic_debrief" style="top:16px; transform:none;" onclick="dictateInto('debrief',{append:true})">🎤</button>
+        </div>
+
+        <div class="field-label">Actions décidées</div>
+        <div class="input-with-mic">
+          <textarea class="dictate" id="actions" placeholder="Sensibilisation, mesure corrective, engagement…" oninput="R.actions=this.value">${escHtmlArea(R.actions)}</textarea>
+          <button class="mic-inline" id="mic_actions" style="top:16px; transform:none;" onclick="dictateInto('actions',{append:true})">🎤</button>
+        </div>
+        <div class="hint">Une action renseignée demandera la signature du responsable à l'étape suivante.</div>
+      </div>
+      <div class="bottom-bar">
+        <button class="btn btn-secondary" onclick="goTo('live')">← Points</button>
+        <button class="btn btn-primary" onclick="goTo('signatures')">Signatures →</button>
+      </div>
+    </div>
+  `;
+}
+function escHtmlArea(s){ return (s||'').replace(/</g,'&lt;'); }
+
+/* ---------- ÉCRAN 4 · SIGNATURES ---------- */
+function renderSignatures(app){
+  const sigRoles = [
+    {key:'conducteur', label:'Conducteur', who:R.conducteur, always:true},
+    {key:'ec1', label:'Équipier 1', who:R.ec1, always: !!R.ec1},
+    {key:'ec2', label:'Équipier 2', who:R.ec2, always: !!R.ec2},
+    {key:'evaluateur', label:'Évaluateur', who:R.evaluateur, always:true},
+    {key:'responsable', label:'Responsable', who:'(si actions)', always: !!R.actions.trim()},
+  ].filter(r=>r.always);
+
+  app.innerHTML = `
+    ${topbar('Signatures', 'Étape 4 · Validation', true)}
+    <div class="screen active">
+      <div class="scroll">
+        ${sigRoles.map(r=>`
+          <div class="card sig-card">
+            <div class="sig-head">
+              <div><div class="name">${r.label}</div><div class="who">${escHtml(r.who)||'—'}</div></div>
+              <div class="st" id="sigstatus_${r.key}">${R.signatures[r.key]?'✓ Signé':'En attente'}</div>
+            </div>
+            <canvas class="sigpad" id="sig_${r.key}"></canvas>
+            <div class="sig-actions"><span class="st"></span><button onclick="clearSig('${r.key}')">Effacer</button></div>
+          </div>
+        `).join('')}
+      </div>
+      <div class="bottom-bar">
+        <button class="btn btn-secondary" onclick="goTo('debrief')">← Débrief</button>
+        <button class="btn btn-primary" onclick="finishAndRecap()">Voir le récapitulatif →</button>
+      </div>
+    </div>
+  `;
+  sigRoles.forEach(r=>{
+    const c = document.getElementById('sig_'+r.key);
+    setupSigCanvas(c);
+    if(R.signatures[r.key]){
+      const img = new Image();
+      img.onload = ()=>{ c.getContext('2d').drawImage(img,0,0,c.width,c.height); };
+      img.src = R.signatures[r.key];
+      c.dataset.signed='1';
+    }
+  });
+}
+async function finishAndRecap(){
+  R.heureFin = nowHM();
+  R.finished = true;
+  await saveReport();
+  goTo('recap');
+}
+
+/* ---------- ÉCRAN 5 · RÉCAPITULATIF ---------- */
+function renderRecap(app){
+  const nonConformSec = R.exceptions.filter(e=>itemType(e.n)==='bin');
+  const gradeIssues = R.exceptions.filter(e=>itemType(e.n)==='grade');
+  const secOk = nonConformSec.length===0;
+  app.innerHTML = `
+    ${topbar('Récapitulatif', R.date+' · '+(R.secteur||''), true)}
+    <div class="screen active">
+      <div class="scroll">
+        <div class="card">
+          <h3>${secOk?'✅ Sécurité conforme':'⚠️ '+nonConformSec.length+' écart(s) sécurité'}</h3>
+          <div class="kv"><div class="k">Équipage</div><div class="v">${escHtml(R.conducteur)}${R.ec1?' · '+escHtml(R.ec1):''}${R.ec2?' · '+escHtml(R.ec2):''}</div></div>
+          <div class="kv"><div class="k">N° Parc</div><div class="v">${escHtml(R.nParc)||'—'}</div></div>
+          <div class="kv"><div class="k">Déchet</div><div class="v">${escHtml(R.natureDechet)}</div></div>
+          <div class="kv"><div class="k">Horaire</div><div class="v">${R.heureDebut} – ${R.heureFin}</div></div>
+          <div class="kv"><div class="k">Évaluateur</div><div class="v">${escHtml(R.evaluateur)}</div></div>
+        </div>
+
+        ${nonConformSec.length ? `<div class="recap-block"><h4>Écarts sécurité</h4>
+          ${nonConformSec.map(e=>`<div class="recap-list-item"><b>${e.n}.</b> ${ITEM_MAP[e.n][1]} — ${ROLES.find(r=>r.key===e.role).label}${e.comment?' — '+escHtml(e.comment):''}</div>`).join('')}
+        </div>` : ''}
+
+        ${gradeIssues.length ? `<div class="recap-block"><h4>Qualité / Environnement</h4>
+          ${gradeIssues.map(e=>`<div class="recap-list-item ${e.value==='BP'?'bp':''}"><b>${e.n}.</b> ${ITEM_MAP[e.n][1]} — ${ROLES.find(r=>r.key===e.role).label} <span class="score-pill" style="background:${e.value==='BP'?'var(--warn-dim)':'var(--bad-dim)'};color:${e.value==='BP'?'var(--warn)':'#ff8b82'}">${e.value==='BP'?'BP':'Note '+e.value}</span>${e.comment?' — '+escHtml(e.comment):''}</div>`).join('')}
+        </div>` : ''}
+
+        <div class="recap-block"><h4>Debrief à chaud</h4><p style="font-size:14px; color:var(--text-dim); white-space:pre-wrap;">${escHtml(R.debrief)||'—'}</p></div>
+        <div class="recap-block"><h4>Actions</h4><p style="font-size:14px; color:var(--text-dim); white-space:pre-wrap;">${escHtml(R.actions)||'—'}</p></div>
+
+        <div class="recap-block"><h4>Signatures</h4>
+          <div class="chip-row">
+          ${Object.entries(R.signatures).filter(([k,v])=>v).map(([k])=>`<div class="chip" style="background:var(--ok-dim); border-color:var(--ok); color:var(--ok);">✓ ${ROLES.find(r=>r.key===k)?ROLES.find(r=>r.key===k).label:(k==='evaluateur'?'Évaluateur':'Responsable')}</div>`).join('') || '<span class="hint">Aucune signature enregistrée.</span>'}
+          </div>
+        </div>
+      </div>
+      <div class="bottom-bar" style="flex-direction:column; gap:8px;">
+        <button class="btn btn-primary" style="width:100%;" onclick="goTo('print')">📄 Rapport officiel (fiche FE 28 QSE)</button>
+        <div style="display:flex; gap:10px; width:100%;">
+          <button class="btn btn-secondary" onclick="copyRecap()">📋 Copier le résumé texte</button>
+          <button class="btn btn-secondary" onclick="startNewSuivi()">Nouveau suivi</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+function recapText(){
+  const lines = [];
+  lines.push('SUIVI DE PRESTATION — COLLECTE PAP (FE 28 QSE)');
+  lines.push('Date : '+R.date+'   Horaire : '+R.heureDebut+' - '+R.heureFin);
+  lines.push('Secteur : '+R.secteur+'   Déchet : '+R.natureDechet+'   N°Parc : '+R.nParc);
+  lines.push('Conducteur : '+R.conducteur+(R.ec1?'   EC1 : '+R.ec1:'')+(R.ec2?'   EC2 : '+R.ec2:''));
+  lines.push('Suivi assuré par : '+R.evaluateur);
+  lines.push('');
+  const nonConformSec = R.exceptions.filter(e=>itemType(e.n)==='bin');
+  const gradeIssues = R.exceptions.filter(e=>itemType(e.n)==='grade');
+  lines.push('ÉCARTS SÉCURITÉ : '+(nonConformSec.length? '' : 'aucun'));
+  nonConformSec.forEach(e=> lines.push('- ('+e.n+') '+ITEM_MAP[e.n][1]+' — '+ROLES.find(r=>r.key===e.role).label+(e.comment?' : '+e.comment:'')));
+  lines.push('');
+  lines.push('QUALITÉ / ENVIRONNEMENT : '+(gradeIssues.length? '' : 'rien à signaler'));
+  gradeIssues.forEach(e=> lines.push('- ('+e.n+') '+ITEM_MAP[e.n][1]+' — '+ROLES.find(r=>r.key===e.role).label+' : '+(e.value==='BP'?'BP':'note '+e.value)+(e.comment?' : '+e.comment:'')));
+  lines.push('');
+  lines.push('DEBRIEF À CHAUD :');
+  lines.push(R.debrief || '—');
+  lines.push('');
+  lines.push('ACTIONS :');
+  lines.push(R.actions || '—');
+  return lines.join('\n');
+}
+async function copyRecap(){
+  try{ await navigator.clipboard.writeText(recapText()); toast('Compte-rendu copié.'); }
+  catch(e){ toast('Copie impossible sur ce navigateur.'); }
+}
+
+/* ---------- ÉCRAN · HISTORIQUE ---------- */
+async function renderHistory(app){
+  app.innerHTML = `${topbar('Historique', 'Suivis enregistrés', true)}
+    <div class="screen active"><div class="scroll" id="histScroll">
+      <div class="hint">Chargement…</div>
+    </div></div>`;
+  const keys = await store.list('suivi:');
+  const reports = (await Promise.all(keys.map(k=>store.get(k)))).filter(Boolean)
+    .sort((a,b)=> new Date(b.createdAt) - new Date(a.createdAt));
+  const box = document.getElementById('histScroll');
+  if(!reports.length){
+    box.innerHTML = `<div class="exceptions-empty"><span class="big">🗂️</span>Aucun suivi enregistré pour l'instant.</div>`;
+    return;
+  }
+  box.innerHTML = `<div class="history-list">` + reports.map(r=>{
+    const nExc = (r.exceptions||[]).length;
+    const badgeColor = nExc===0 ? 'var(--ok-dim)' : 'var(--bad-dim)';
+    const badgeText = nExc===0 ? '✓' : nExc;
+    const badgeFg = nExc===0 ? 'var(--ok)' : '#ff8b82';
+    return `<div class="history-item" onclick='openReport("${r.id}")'>
+      <div class="badge" style="background:${badgeColor}; color:${badgeFg};">${badgeText}</div>
+      <div class="meta">
+        <div class="l1">${escHtml(r.conducteur)||'Sans nom'} — ${escHtml(r.secteur)||''}</div>
+        <div class="l2">${r.date} · ${escHtml(r.natureDechet)||''} · Parc ${escHtml(r.nParc)||'—'}</div>
+      </div>
+      <div class="chev">›</div>
+    </div>`;
+  }).join('') + `</div>`;
+}
+async function openReport(id){
+  const r = await store.get('suivi:'+id);
+  if(!r){ toast('Suivi introuvable.'); return; }
+  R = r;
+  goTo('recap');
+}
+async function saveReport(){
+  const ok = await store.set('suivi:'+R.id, R);
+  if(!ok) toast('Enregistrement local indisponible — le compte-rendu reste affiché.');
+}
+
+/* =========================================================================
+   RAPPORT OFFICIEL — fac-similé imprimable de la fiche FE 28 QSE
+   ========================================================================= */
+function sigImgTag(role){
+  return R.signatures[role] ? `<img class="sigimg" src="${R.signatures[role]}">` : '<span style="color:#999;">—</span>';
+}
+function meteoBox(k){
+  const on = R.meteo===k;
+  return `<div class="m">${METEO.find(m=>m.k===k).ic}<span class="box">${on?'X':''}</span></div>`;
+}
+function ppSecTable(){
+  const roles = [
+    {key:'conducteur', active:true},
+    {key:'ec1', active:!!R.ec1},
+    {key:'ec2', active:!!R.ec2},
+  ];
+  const head = `<tr>
+      <th rowspan="2" class="lblcol">SÉCURITÉ</th>
+      ${roles.map(r=>`<th colspan="3">${r.key==='conducteur'?'Conducteur':(r.key==='ec1'?'EC 1':'EC 2')}</th>`).join('')}
+      <th rowspan="2">Commentaires</th>
+    </tr>
+    <tr>${roles.map(()=>'<th class="cbx">OUI</th><th class="cbx">NON</th><th class="cbx">NA</th>').join('')}</tr>`;
+  const rows = SEC_ITEMS.map(([n,label])=>{
+    const cells = roles.map(r=>{
+      if(!r.active) return '<td class="cbx"></td><td class="cbx"></td><td class="cbx"></td>';
+      const v = R.items[n][r.key];
+      return `<td class="cbx">${v==='OUI'?'X':''}</td><td class="cbx">${v==='NON'?'X':''}</td><td class="cbx">${v==='NA'?'X':''}</td>`;
+    }).join('');
+    return `<tr><td class="lblcol">${n}- ${label}</td>${cells}<td class="cmt">${escHtml(R.items[n].comment)}</td></tr>`;
+  }).join('');
+  return `<table class="pp-sec-table">${head}${rows}</table>`;
+}
+function ppGradeTable(title, items){
+  const roles = [
+    {key:'conducteur', active:true},
+    {key:'ec1', active:!!R.ec1},
+    {key:'ec2', active:!!R.ec2},
+  ];
+  const head = `<tr>
+      <th rowspan="2" class="lblcol">${title}</th>
+      ${roles.map(r=>`<th colspan="5">${r.key==='conducteur'?'Conducteur':(r.key==='ec1'?'EC 1':'EC 2')}</th>`).join('')}
+      <th rowspan="2">Commentaires<br>(si BP)</th>
+    </tr>
+    <tr>${roles.map(()=>'<th class="cbx">BP</th><th class="cbx">3</th><th class="cbx">2</th><th class="cbx">1</th><th class="cbx">NA</th>').join('')}</tr>`;
+  const rows = items.map(([n,label])=>{
+    const cells = roles.map(r=>{
+      if(!r.active) return '<td class="cbx"></td><td class="cbx"></td><td class="cbx"></td><td class="cbx"></td><td class="cbx"></td>';
+      const v = R.items[n][r.key];
+      return ['BP',3,2,1,'NA'].map(opt=>`<td class="cbx">${v===opt?'X':''}</td>`).join('');
+    }).join('');
+    return `<tr><td class="lblcol">${n}- ${label}</td>${cells}<td class="cmt">${escHtml(R.items[n].comment)}</td></tr>`;
+  }).join('');
+  return `<table class="pp-sec-table">${head}${rows}</table>`;
+}
+function buildPrintPages(){
+  const page1 = `
+  <div class="print-page">
+    <div class="paper">
+      <div class="pp-head">
+        <div class="logo"><div class="b1">PIZZORNO</div><div class="b2">E N V I R O N N E M E N T</div></div>
+        <div class="mid">Suivi de prestation<br>Collecte PAP</div>
+        <div class="right">Système de Management<br>Intégré</div>
+      </div>
+      <div class="pp-banner">Le suivi des points sécurité est prioritaire et l'évaluation doit se faire avec rigueur et objectivité afin d'améliorer les pratiques et prévenir les risques.</div>
+      <table class="pp-info-table" style="margin-top:8px;">
+        <tr><td class="lbl">Date du suivi</td><td>${R.date}</td><td class="lbl">Suivi assuré par</td><td>${escHtml(R.evaluateur)}</td></tr>
+        <tr><td class="lbl">Secteur</td><td>${escHtml(R.secteur)}</td><td rowspan="6" colspan="2" class="pp-legend">
+          <b>Niveaux de cotation</b>
+          Pour Sécurité — Oui : Conforme / Non : Non-conforme<br><br>
+          Pour Qualité et Environnement<br>
+          BP = Bonne pratique à relever<br>
+          3 = Conforme exigences 100%<br>
+          2 = Inférieur aux exigences<br>
+          1 = Très insatisfaisant 0%<br>
+          NA = Non Applicable<br><br>
+          <i>1 seul manquement sur un point de suivi en sécurité vaut pour non-conformité.</i>
+        </td></tr>
+        <tr><td class="lbl">Nature du déchet</td><td>${escHtml(R.natureDechet)}</td></tr>
+        <tr><td class="lbl">N°PARC</td><td>${escHtml(R.nParc)}</td></tr>
+        <tr><td class="lbl">Nom du conducteur</td><td>${escHtml(R.conducteur)}</td></tr>
+        <tr><td class="lbl">Nom équipier de collecte 1</td><td>${escHtml(R.ec1)}</td></tr>
+        <tr><td class="lbl">Nom équipier de collecte 2</td><td>${escHtml(R.ec2)}</td></tr>
+        <tr><td class="lbl">Horaire début / fin</td><td>${R.heureDebut} — ${R.heureFin}</td>
+          <td class="lbl">Conditions météo</td>
+          <td><div class="pp-meteo">${METEO.map(m=>meteoBox(m.k)).join('')}</div></td></tr>
+      </table>
+      <table style="margin-top:0;">
+        <tr class="pp-sig-row">
+          <td><b>Signature conducteur</b>${sigImgTag('conducteur')}</td>
+          <td><b>Signature équipier 1</b>${sigImgTag('ec1')}</td>
+          <td><b>Signature équipier 2</b>${sigImgTag('ec2')}</td>
+          <td><b>Signature évaluateur</b>${sigImgTag('evaluateur')}</td>
+        </tr>
+      </table>
+      <div class="pp-block-title" style="margin-top:10px;">RETOUR DU SUIVI FAIT À L'ÉQUIPAGE — DEBRIEF À CHAUD</div>
+      <div class="pp-block-body">${escHtml(R.debrief)||' '}</div>
+      <div class="pp-block-title" style="margin-top:10px;">ACTIONS</div>
+      <div class="pp-actions-row">
+        <div class="resp"><b>Signature du responsable</b>${sigImgTag('responsable')}</div>
+        <div class="txt">${escHtml(R.actions)||' '}</div>
+      </div>
+      <div class="pp-footer"><span>Date de révision : 13/01/2025</span><span>FE 28 QSE</span><span>1/2</span></div>
+    </div>
+  </div>`;
+  const page2 = `
+  <div class="print-page">
+    <div class="paper">
+      <div class="pp-head">
+        <div class="logo"><div class="b1">PIZZORNO</div><div class="b2">E N V I R O N N E M E N T</div></div>
+        <div class="mid">Suivi de prestation<br>Collecte PAP</div>
+        <div class="right">Système de Management<br>Intégré</div>
+      </div>
+      <div class="pp-verso-title">${escHtml(R.conducteur)} — ${R.date} — ${escHtml(R.secteur)}</div>
+      ${ppSecTable()}
+      ${ppGradeTable('QUALITÉ', QUAL_ITEMS)}
+      ${ppGradeTable('ENVIRONNEMENT', ENV_ITEMS)}
+      <div class="pp-footer"><span>Date de révision : 13/01/2025</span><span>Réf : FE 28 QSE</span><span>2/2</span></div>
+    </div>
+  </div>`;
+  return page1 + page2;
+}
+function renderPrint(app){
+  app.innerHTML = `
+    <div class="topbar no-print">
+      <button class="icon-btn" onclick="goTo('recap')">‹</button>
+      <div style="flex:1;"><div class="title">Rapport officiel</div><div class="sub">Fac-similé FE 28 QSE — 2 pages</div></div>
+    </div>
+    <div class="screen active" id="printSheet">
+      <div class="paper-wrap">
+        <div class="paper-zoom-hint no-print">Pincez pour zoomer · faites défiler pour voir les 2 pages</div>
+        ${buildPrintPages()}
+      </div>
+      <div class="bottom-bar no-print">
+        <button class="btn btn-secondary" onclick="goTo('recap')">← Retour</button>
+        <button class="btn btn-primary" onclick="window.print()">🖨️ Imprimer / Enregistrer en PDF</button>
+      </div>
+    </div>
+  `;
+}
+
+/* ---------- ÉCRAN · MES MOTS-CLÉS (correspondances personnalisées) ---------- */
+let kwDraft = null; // copie de travail avant enregistrement
+function renderKeywords(app){
+  if(!kwDraft) kwDraft = {...customKeywords};
+  app.innerHTML = `
+    ${topbar('Mes mots-clés', 'Formulations personnalisées', false)}
+    <div class="screen active">
+      <div class="scroll">
+        <div class="hint" style="margin-bottom:14px;">
+          Pour chaque point, ajoutez vos propres façons de le dire (séparées par des virgules).
+          Elles s'ajoutent aux formulations par défaut et sont prioritaires lors de la reconnaissance.
+        </div>
+        ${sectionKwHtml('SÉCURITÉ', SEC_ITEMS)}
+        ${sectionKwHtml('QUALITÉ', QUAL_ITEMS)}
+        ${sectionKwHtml('ENVIRONNEMENT', ENV_ITEMS)}
+      </div>
+      <div class="bottom-bar">
+        <button class="btn btn-secondary" onclick="cancelKeywords()">Annuler</button>
+        <button class="btn btn-primary" onclick="saveKeywords()">Enregistrer</button>
+      </div>
+    </div>
+  `;
+}
+function sectionKwHtml(title, items){
+  return `<div class="section-title"><div class="sw" style="background:var(--accent)"></div><h3>${title}</h3></div>` +
+    items.map(([n,label])=>{
+      const defaults = (ITEM_KEYWORDS[n]||[]).join(' · ');
+      return `<div class="kw-row">
+        <div class="kw-row-top"><div class="n">${n}</div><div class="label">${label}</div></div>
+        <div class="kw-default">Par défaut : ${defaults}</div>
+        <div class="kw-input-row">
+          <input id="kw_${n}" placeholder="Vos formulations, séparées par des virgules" value="${escAttr(kwDraft[n]||'')}" oninput="kwDraft[${n}]=this.value">
+          <button class="mic-inline" id="mic_kw_${n}" onclick="dictateKeyword(${n})">🎤</button>
+        </div>
+      </div>`;
+    }).join('');
+}
+function dictateKeyword(n){
+  if(!SR){ toast('Dictée vocale indisponible — saisissez au clavier.'); return; }
+  const el = document.getElementById('kw_'+n);
+  const btn = document.getElementById('mic_kw_'+n);
+  const launch = ()=>{
+    const r = new SR();
+    r.lang='fr-FR'; r.continuous=false; r.interimResults=true;
+    if(btn) btn.classList.add('on');
+    r.onresult = (ev)=>{
+      let t=''; for(let i=0;i<ev.results.length;i++) t += ev.results[i][0].transcript;
+      el.value = t; kwDraft[n]=t;
+    };
+    r.onerror = (e)=>{
+      if(btn) btn.classList.remove('on');
+      if(e.error==='network') toast('Pas de connexion internet : la dictée est indisponible.');
+      else if(e.error==='not-allowed') toast("Micro refusé — autorisez l'accès au micro.");
+    };
+    r.onend = ()=>{ if(btn) btn.classList.remove('on'); vibrate(20); };
+    try{ r.start(); }catch(e){ setTimeout(()=>{ try{ r.start(); }catch(e2){ toast('Micro occupé, réessayez.'); } }, 300); }
+  };
+  if(listening){ listeningIntended=false; try{ recognizer && recognizer.stop(); }catch(e){} setMicUI(false); setTimeout(launch,250); }
+  else launch();
+}
+function cancelKeywords(){ kwDraft = null; goTo(screenBeforeKeywords); }
+async function saveKeywords(){
+  // nettoie les entrées vides
+  const cleaned = {};
+  Object.keys(kwDraft).forEach(k=>{ if(kwDraft[k] && kwDraft[k].trim()) cleaned[k]=kwDraft[k].trim(); });
+  customKeywords = cleaned;
+  await store.set('settings:keywords', customKeywords);
+  kwDraft = null;
+  toast('Vos formulations sont enregistrées.');
+  goTo(screenBeforeKeywords);
+}
+function openKeywords(){ screenBeforeKeywords = currentScreen; kwDraft = {...customKeywords}; goTo('keywords'); }
+
+/* ---------- Barre supérieure commune ---------- */
+function topbar(title, sub, showProgress){
+  const offline = !navigator.onLine;
+  return `<div class="topbar">
+    <button class="icon-btn" onclick="handleBack()">‹</button>
+    <div style="flex:1;">
+      <div class="title">${title}</div>
+      ${sub?`<div class="sub">${sub}${offline?' · <span style="color:var(--warn); font-weight:700;">● hors ligne</span>':''}</div>`:(offline?`<div class="sub" style="color:var(--warn); font-weight:700;">● hors ligne</div>`:'')}
+    </div>
+    ${currentScreen!=='home'?`<button class="icon-btn" onclick="goTo('home')" title="Accueil">⌂</button>`:''}
+  </div>
+  ${showProgress? `<div class="progress-track"><div class="progress-fill" style="width:${progressPct()}%"></div></div>` : ''}`;
+}
+function handleBack(){
+  const idx = SCREEN_ORDER.indexOf(currentScreen);
+  if(currentScreen==='history'){ goTo('home'); return; }
+  if(idx<=0){ goTo('home'); return; }
+  goTo(SCREEN_ORDER[idx-1]);
+}
+
+/* ---------- Connectivité ---------- */
+window.addEventListener('online', ()=>{ toast('Connexion rétablie.'); render(); });
+window.addEventListener('offline', ()=>{
+  toast('Hors connexion — le vocal continu est indisponible. Utilisez la grille tactile.', 3500);
+  if(listening){ listeningIntended=false; try{ recognizer && recognizer.stop(); }catch(e){} setMicUI(false); }
+  render();
+});
+
+/* ---------- Démarrage ---------- */
+loadCustomKeywords().then(()=>goTo('home'));
+</script>
+</body>
+</html>
