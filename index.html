@@ -343,12 +343,34 @@ textarea.dictate{ width:100%; min-height:110px; padding:14px; border-radius:var(
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <script>
 window.FIREBASE_CONFIG = {
-  apiKey: "AIzaSyDHLAZSBZSyn5v7JYCcvxKzifdx0pUkQzA",
-  authDomain: "suivi-pap-7317f.firebaseapp.com",
-  databaseURL: "https://suivi-pap-7317f-default-rtdb.europe-west1.firebasedatabase.app",
-  projectId: "suivi-pap-7317f",
+  apiKey: "VOTRE_API_KEY",
+  authDomain: "VOTRE_PROJET.firebaseapp.com",
+  databaseURL: "https://VOTRE_PROJET-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "VOTRE_PROJET",
 };
 </script>
+
+<!-- ==========================================================================
+     ENVOI DU RAPPORT PAR EMAIL (Google Apps Script, gratuit)
+     ==========================================================================
+     Un site web ne peut pas envoyer un email directement : il faut un petit
+     relais. Demandez à Claude "donne-moi le code Apps Script à coller sur
+     script.google.com" pour obtenir le script à déployer (5 min, gratuit,
+     aucune carte bancaire, tout se fait dans le navigateur sur
+     script.google.com avec un compte Google). Une fois déployé en tant que
+     "Web app", collez son URL et le code secret choisi ci-dessous.
+     Tant que endpointUrl n'est pas renseignée, le bouton "Envoyer par email"
+     affiche une explication au lieu d'essayer d'envoyer.
+-->
+<script>
+window.EMAIL_CONFIG = {
+  endpointUrl: "https://script.google.com/macros/s/AKfycbz51lkBI1wewus0KhLAv--P-yZdpQghYDyVUB6ajJbHQAzTXF7YUcRAokEbPA9NDbi5/exec",   // ex: https://script.google.com/macros/s/AKfycb.../exec
+  sharedSecret: "Pizzorno69!",       // même valeur que dans le script Apps Script
+  defaultRecipients: "",                    // ex: "qse@pizzorno.fr" — pré-rempli, modifiable à l'envoi
+};
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
 <script>
 /* =========================================================================
@@ -477,6 +499,10 @@ function withTimeout(promise, ms){
     new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')), ms)),
   ]);
 }
+
+/* ---------- Envoi du rapport par email (Google Apps Script, optionnel) ---------- */
+const EMAIL_CFG = (typeof window!=='undefined' && window.EMAIL_CONFIG) || {};
+const EMAIL_ENABLED = !!(EMAIL_CFG.endpointUrl && EMAIL_CFG.endpointUrl!=='VOTRE_URL_APPS_SCRIPT');
 
 /* ---------- État de session ---------- */
 function blankReport(){
@@ -1469,7 +1495,8 @@ function renderRecap(app){
         </div>
       </div>
       <div class="bottom-bar" style="flex-direction:column; gap:8px;">
-        <button class="btn btn-primary" style="width:100%;" onclick="goTo('print')">📄 Rapport officiel (fiche FE 28 QSE)</button>
+        <button class="btn btn-primary" style="width:100%;" onclick="sendReportByEmail()">📧 Envoyer le rapport par email</button>
+        <button class="btn btn-secondary" style="width:100%;" onclick="goTo('print')">📄 Rapport officiel (fiche FE 28 QSE)</button>
         <div style="display:flex; gap:10px; width:100%;">
           <button class="btn btn-secondary" onclick="copyRecap()">📋 Copier le résumé texte</button>
           <button class="btn btn-secondary" onclick="startNewSuivi()">Nouveau suivi</button>
@@ -1667,6 +1694,90 @@ function buildPrintPages(){
   </div>`;
   return page1 + page2;
 }
+
+/* =========================================================================
+   GÉNÉRATION PDF + ENVOI PAR EMAIL (relais Google Apps Script)
+   ========================================================================= */
+async function generateReportPdfDataUri(onProgress){
+  if(typeof html2canvas==='undefined' || typeof window.jspdf==='undefined'){
+    throw new Error("Les bibliothèques PDF ne sont pas chargées (vérifiez la connexion et rechargez la page).");
+  }
+  const host = document.createElement('div');
+  host.style.position='fixed'; host.style.left='-99999px'; host.style.top='0'; host.style.pointerEvents='none';
+  host.innerHTML = buildPrintPages();
+  document.body.appendChild(host);
+  try{
+    const pageEls = host.querySelectorAll('.paper');
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({ unit:'pt', format:'a4', orientation:'portrait' });
+    for(let i=0;i<pageEls.length;i++){
+      if(onProgress) onProgress(i+1, pageEls.length);
+      const canvas = await html2canvas(pageEls[i], { scale:2, backgroundColor:'#ffffff', useCORS:true });
+      const imgData = canvas.toDataURL('image/jpeg', 0.92);
+      const pageW = pdf.internal.pageSize.getWidth();
+      const pageH = pdf.internal.pageSize.getHeight();
+      if(i>0) pdf.addPage();
+      pdf.addImage(imgData, 'JPEG', 0, 0, pageW, pageH);
+    }
+    return pdf.output('datauristring');
+  } finally {
+    document.body.removeChild(host);
+  }
+}
+function promptEmailRecipient(){
+  return new Promise((resolve)=>{
+    const saved = localStorage.getItem('lastEmailTo') || EMAIL_CFG.defaultRecipients || '';
+    window.__emailPromptResolve = resolve;
+    openModal(`<h3>Envoyer le rapport par email</h3>
+      <p style="font-size:13px; color:var(--text-dim);">Une ou plusieurs adresses, séparées par une virgule. L'email part sans passer par la messagerie du téléphone.</p>
+      <input class="text-input" id="emailToInput" placeholder="nom@entreprise.fr" value="${escAttr(saved)}" style="margin-bottom:14px;">
+      <button class="btn btn-primary" style="width:100%; margin-bottom:8px;" onclick="resolveEmailPrompt()">Envoyer</button>
+      <button class="modal-close" onclick="resolveEmailPrompt(true)">Annuler</button>`);
+  });
+}
+function resolveEmailPrompt(cancelled){
+  const el = document.getElementById('emailToInput');
+  const val = (!cancelled && el) ? el.value.trim() : '';
+  closeModal();
+  if(window.__emailPromptResolve){ window.__emailPromptResolve(val || null); window.__emailPromptResolve=null; }
+}
+async function sendReportByEmail(){
+  if(!EMAIL_ENABLED){
+    openModal(`<h3>Envoi par email non configuré</h3>
+      <p>Cette fonction nécessite un petit relais gratuit (Google Apps Script) à déployer une fois pour toute l'équipe. Demandez à Claude « donne-moi le code Apps Script pour l'envoi d'email » pour l'obtenir, puis renseignez son adresse dans le fichier index.html (bloc EMAIL_CONFIG en haut du fichier).</p>
+      <button class="modal-close" onclick="closeModal()">Compris</button>`);
+    return;
+  }
+  const to = await promptEmailRecipient();
+  if(!to) return;
+  try{ localStorage.setItem('lastEmailTo', to); }catch(e){}
+  toast('Génération du PDF…', 15000);
+  try{
+    const dataUri = await generateReportPdfDataUri((p,total)=>toast('Génération du PDF… page '+p+'/'+total, 15000));
+    const base64 = dataUri.split(',')[1];
+    toast('Envoi de l\'email…', 20000);
+    const resp = await fetch(EMAIL_CFG.endpointUrl, {
+      method:'POST',
+      headers:{'Content-Type':'text/plain;charset=utf-8'}, // évite le préflight CORS que Apps Script gère mal
+      body: JSON.stringify({
+        secret: EMAIL_CFG.sharedSecret,
+        to,
+        subject: 'Suivi PAP — '+(R.conducteur||'')+' — '+R.date,
+        body: 'Rapport de suivi de prestation collecte PAP en pièce jointe.\n\nSecteur : '+R.secteur+'\nDate : '+R.date+'\nÉvaluateur : '+R.evaluateur,
+        filename: 'suivi_pap_'+(R.date||'').replace(/\//g,'-')+'.pdf',
+        pdfBase64: base64,
+      }),
+    });
+    let j = {};
+    try{ j = await resp.json(); }catch(e){}
+    if(j && j.ok){ toast('Email envoyé à '+to+' ✅', 3500); }
+    else{ toast("Échec de l'envoi"+(j&&j.error?(' : '+j.error):'')+'. Réessayez.', 4500); }
+  }catch(e){
+    console.error(e);
+    toast("Échec de l'envoi — vérifiez la connexion et réessayez.", 4000);
+  }
+}
+
 function renderPrint(app){
   app.innerHTML = `
     <div class="topbar no-print">
@@ -1678,9 +1789,12 @@ function renderPrint(app){
         <div class="paper-zoom-hint no-print">Pincez pour zoomer · faites défiler pour voir les 2 pages</div>
         ${buildPrintPages()}
       </div>
-      <div class="bottom-bar no-print">
-        <button class="btn btn-secondary" onclick="goTo('recap')">← Retour</button>
-        <button class="btn btn-primary" onclick="window.print()">🖨️ Imprimer / Enregistrer en PDF</button>
+      <div class="bottom-bar no-print" style="flex-direction:column; gap:8px;">
+        <button class="btn btn-primary" style="width:100%;" onclick="sendReportByEmail()">📧 Envoyer par email</button>
+        <div style="display:flex; gap:10px; width:100%;">
+          <button class="btn btn-secondary" onclick="goTo('recap')">← Retour</button>
+          <button class="btn btn-secondary" onclick="window.print()">🖨️ Imprimer / PDF</button>
+        </div>
       </div>
     </div>
   `;
