@@ -361,12 +361,24 @@ window.FIREBASE_CONFIG = {
      "Web app", collez son URL et le code secret choisi ci-dessous.
      Tant que endpointUrl n'est pas renseignée, le bouton "Envoyer par email"
      affiche une explication au lieu d'essayer d'envoyer.
+
+     recipientsBySecteur : destinataires différents selon le secteur choisi
+     à l'étape 1 du suivi. La clé doit correspondre exactement au nom du
+     secteur tel qu'il apparaît (Valence / Lyon / Vénissieux / Grenoble, ou
+     tout secteur saisi librement) — une correspondance approximative est
+     tentée si l'orthographe diffère légèrement. Le champ reste modifiable
+     à la main avant l'envoi si besoin.
 -->
 <script>
 window.EMAIL_CONFIG = {
   endpointUrl: "https://script.google.com/macros/s/AKfycbzNH9U5q_7lC5Aq9mvLbPFDCYh4tSxgFTVj6YtsKyi77UHPo4OUCrSF202HO5Yyy0mmWQ/exec",   // ex: https://script.google.com/macros/s/AKfycb.../exec
   sharedSecret: "Pizzorno69!",       // même valeur que dans le script Apps Script
-  defaultRecipients: "j.sauvebelle@pizzorno.com,j.grava@pizzorno.com",                    // ex: "qse@pizzorno.fr" — pré-rempli, modifiable à l'envoi
+  recipientsBySecteur: {
+    "Valence": "j.sauvebelle@pizzorno.com,j.grava@pizzorno.com",
+    "Lyon / Vénissieux": "j.sauvebelle@pizzorno.com,l.capron@pizzorno.com",
+    "Grenoble": "j.sauvebelle@pizzorno.com,j.grava@pizzorno.com,a.benamsili@pizzorno.com",
+  },
+  defaultRecipients: "",  // repli si le secteur n'a pas d'adresses paramétrées ci-dessus
 };
 </script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
@@ -1724,12 +1736,28 @@ async function generateReportPdfDataUri(onProgress){
     document.body.removeChild(host);
   }
 }
+function recipientsForSecteur(secteur){
+  const map = EMAIL_CFG.recipientsBySecteur || {};
+  const target = norm(secteur||'');
+  if(!target) return null;
+  // correspondance exacte
+  for(const key of Object.keys(map)){
+    if(norm(key)===target && map[key] && map[key].trim()) return map[key].trim();
+  }
+  // correspondance approximative (accents/orthographe/secteur partiel)
+  for(const key of Object.keys(map)){
+    const k = norm(key);
+    if(k && map[key] && map[key].trim() && (k.includes(target) || target.includes(k))) return map[key].trim();
+  }
+  return null;
+}
 function promptEmailRecipient(){
   return new Promise((resolve)=>{
-    const saved = localStorage.getItem('lastEmailTo') || EMAIL_CFG.defaultRecipients || '';
+    const bySecteur = recipientsForSecteur(R.secteur);
+    const saved = bySecteur || localStorage.getItem('lastEmailTo') || EMAIL_CFG.defaultRecipients || '';
     window.__emailPromptResolve = resolve;
     openModal(`<h3>Envoyer le rapport par email</h3>
-      <p style="font-size:13px; color:var(--text-dim);">Une ou plusieurs adresses, séparées par une virgule. L'email part sans passer par la messagerie du téléphone.</p>
+      <p style="font-size:13px; color:var(--text-dim);">Une ou plusieurs adresses, séparées par une virgule. L'email part sans passer par la messagerie du téléphone.${bySecteur?' Pré-rempli pour le secteur <b>'+escHtml(R.secteur)+'</b>.':''}</p>
       <input class="text-input" id="emailToInput" placeholder="nom@entreprise.fr" value="${escAttr(saved)}" style="margin-bottom:14px;">
       <button class="btn btn-primary" style="width:100%; margin-bottom:8px;" onclick="resolveEmailPrompt()">Envoyer</button>
       <button class="modal-close" onclick="resolveEmailPrompt(true)">Annuler</button>`);
